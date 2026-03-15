@@ -23,6 +23,23 @@ sourceSets {
     }
 }
 
+// When client.jar is absent, compile the DreamBot API stubs from test/ and
+// place them on main's compile classpath so the main sources can build.
+if (fileTree(dir: 'libs', include: ['*.jar']).isEmpty()) {
+    sourceSets {
+        stubs {
+            java {
+                srcDirs = ['test']
+                include 'org/dreambot/**'
+            }
+        }
+    }
+    dependencies {
+        compileOnly sourceSets.stubs.output
+    }
+    tasks.compileJava.dependsOn tasks.compileStubsJava
+}
+
 repositories {
     mavenCentral()
 }
