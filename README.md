@@ -1,0 +1,2 @@
+# EliteSlayer
+OSRS Slayer Bot
