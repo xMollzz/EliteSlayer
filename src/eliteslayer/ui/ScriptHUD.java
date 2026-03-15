@@ -2,14 +2,23 @@ package eliteslayer.ui;
 
 import eliteslayer.systems.CrowdTracker;
 import eliteslayer.systems.EntropyMonitor;
+import eliteslayer.systems.PlayerThreatDetector;
 import eliteslayer.util.Telemetry;
 import org.dreambot.api.methods.skills.Skill;
 import org.dreambot.api.methods.skills.Skills;
 import java.awt.*;
 
 /**
- * Full HUD overlay with HP bar, entropy bar, crowd display and Telemetry
- * data (optimisation 5 display requirement).
+ * Full HUD overlay with HP bar, entropy bar, crowd display, threat indicator,
+ * and Telemetry data.
+ *
+ * <h3>New displays</h3>
+ * <ul>
+ *   <li><b>Threat score</b> — current player-threat level from
+ *       {@link PlayerThreatDetector}.</li>
+ *   <li><b>World hops</b> — total hops this session.</li>
+ *   <li><b>Bot-risk</b> — composite entropy/diversity score.</li>
+ * </ul>
  *
  * {@link #render(Graphics)} is called from the script's {@code onPaint}.
  */
@@ -23,6 +32,9 @@ public final class ScriptHUD {
     private static final Color HP_MED        = new Color(255, 165, 0);
     private static final Color HP_LOW        = new Color(220, 50, 50);
     private static final Color ENTROPY_COLOR = new Color(100, 180, 255);
+    private static final Color THREAT_LOW    = new Color(50, 205, 50);
+    private static final Color THREAT_MED    = new Color(255, 165, 0);
+    private static final Color THREAT_HIGH   = new Color(220, 50, 50);
     private static final Color BAR_BG        = new Color(50, 50, 50);
 
     private static final int HUD_X     = 10;
@@ -33,12 +45,15 @@ public final class ScriptHUD {
     private static final int BAR_W     = 180;
     private static final int PADDING   = 8;
 
-    private final EntropyMonitor entropy;
-    private final CrowdTracker   crowd;
+    private final EntropyMonitor       entropy;
+    private final CrowdTracker         crowd;
+    private final PlayerThreatDetector threats;
 
-    public ScriptHUD(EntropyMonitor entropy, CrowdTracker crowd) {
+    public ScriptHUD(EntropyMonitor entropy, CrowdTracker crowd,
+                     PlayerThreatDetector threats) {
         this.entropy = entropy;
         this.crowd   = crowd;
+        this.threats = threats;
     }
 
     /** Called from onPaint — renders the entire HUD. */
@@ -46,8 +61,8 @@ public final class ScriptHUD {
         Graphics2D g2 = (Graphics2D) g;
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
-        int lines  = 16;
-        int height = PADDING * 2 + lines * LINE_H + BAR_H * 2 + 10;
+        int lines  = 20;
+        int height = PADDING * 2 + lines * LINE_H + BAR_H * 3 + 16;
 
         // Background
         g2.setColor(BG_COLOR);
@@ -82,6 +97,10 @@ public final class ScriptHUD {
         drawRow(g2, x, y, "GE Buys:",  String.valueOf(Telemetry.getGERestocks()));   y += LINE_H;
         drawRow(g2, x, y, "Mule Tx:",  String.valueOf(Telemetry.getMuleTransfers())); y += LINE_H;
 
+        // NEW: World hops and threats
+        drawRow(g2, x, y, "W.Hops:",   String.valueOf(Telemetry.getWorldHops()));      y += LINE_H;
+        drawRow(g2, x, y, "Threats:",   String.valueOf(Telemetry.getThreatsDetected())); y += LINE_H;
+
         // Success rate
         drawRow(g2, x, y, "Success:", Telemetry.getSuccessRate() + "% ("
             + Telemetry.getSuccessCount() + "/" +
@@ -108,6 +127,16 @@ public final class ScriptHUD {
         g2.setColor(LABEL_COLOR);
         g2.drawString("Entropy: " + String.format("%.2f", ef), x, y); y += 12;
         drawBar(g2, x, y, BAR_W, BAR_H, ef, ENTROPY_COLOR);
+        y += BAR_H + 4;
+
+        // NEW: Threat bar
+        int threatScore = threats != null ? threats.getThreatScore() : 0;
+        float threatFrac = Math.min(1.0f, threatScore / 80.0f);
+        Color threatColor = threatScore < PlayerThreatDetector.PAUSE_THRESHOLD ? THREAT_LOW
+            : threatScore < PlayerThreatDetector.HOP_THRESHOLD ? THREAT_MED : THREAT_HIGH;
+        g2.setColor(LABEL_COLOR);
+        g2.drawString("Threat: " + threatScore, x, y); y += 12;
+        drawBar(g2, x, y, BAR_W, BAR_H, threatFrac, threatColor);
     }
 
     // ------------------------------------------------------------------ //

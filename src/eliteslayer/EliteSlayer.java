@@ -23,20 +23,29 @@ import java.util.Arrays;
 @ScriptManifest(
     name    = "EliteSlayer",
     author  = "xMollzz",
-    version = 1.0,
-    description = "Modular OSRS Slayer bot with behaviour-tree AI.",
+    version = 2.0,
+    description = "Modular OSRS Slayer bot with behaviour-tree AI, "
+        + "human reaction model, dynamic mouse, threat detection, "
+        + "world hopping, and task learning.",
     category = Category.SLAYER
 )
 public final class EliteSlayer extends AbstractScript {
 
-    // Systems
-    private EntropyMonitor  entropy;
-    private CrowdTracker    crowd;
-    private AntiBanEngine   antiBan;
-    private BreakScheduler  breaks;
-    private StuckDetector   stuck;
-    private DiscordWebhook  discord;
-    private FileStateStore  state;
+    // Core systems
+    private EntropyMonitor       entropy;
+    private CrowdTracker         crowd;
+    private AntiBanEngine        antiBan;
+    private BreakScheduler       breaks;
+    private StuckDetector        stuck;
+    private DiscordWebhook       discord;
+    private FileStateStore       state;
+
+    // NEW systems
+    private HumanReactionEngine  reactions;
+    private PlayerThreatDetector threats;
+    private WorldHopSystem       worldHop;
+    private DynamicMouseBehavior mouseBehavior;
+    private DynamicTaskLearner   learner;
 
     // UI
     private ConfigGUI gui;
@@ -79,19 +88,29 @@ public final class EliteSlayer extends AbstractScript {
         // Capture baseline XP for XP/hr calculation
         Telemetry.setStartXp(Skills.getTotalXP());
 
-        entropy = new EntropyMonitor();
-        crowd   = new CrowdTracker();
-        antiBan = new AntiBanEngine(entropy);
-        breaks  = new BreakScheduler();
-        stuck   = new StuckDetector(this::stop);
-        hud     = new ScriptHUD(entropy, crowd);
+        // Core systems
+        entropy       = new EntropyMonitor();
+        crowd         = new CrowdTracker();
+
+        // NEW systems
+        reactions     = new HumanReactionEngine();
+        mouseBehavior = new DynamicMouseBehavior();
+        threats       = new PlayerThreatDetector();
+        worldHop      = new WorldHopSystem();
+        learner       = new DynamicTaskLearner();
+
+        antiBan       = new AntiBanEngine(entropy, reactions, mouseBehavior);
+        breaks        = new BreakScheduler();
+        stuck         = new StuckDetector(this::stop);
+        hud           = new ScriptHUD(entropy, crowd, threats);
 
         MonsterDef monster = MonsterDatabase.get(gui.selectedMonster);
         int[]      mulePos = parseMulePos(gui);
 
         tree = new Selector(Arrays.asList(
-            new SafetyNode(entropy, crowd),
+            new SafetyNode(entropy, crowd, threats),
             new BreakNode(breaks),
+            new WorldHopNode(crowd, threats, worldHop),
             new EatNode(gui.eatThreshold),
             new PotionNode(),
             new PrayerNode(gui.usePrayer, monster != null ? monster.protection : ""),
@@ -101,12 +120,13 @@ public final class EliteSlayer extends AbstractScript {
             new GENode(gui.useGE),
             new CannonNode(gui.useCannon, monster),
             new LootNode(),
-            new CombatNode(monster)
+            new CombatNode(monster, reactions, learner)
         ));
 
         // Restore crash-resume counters
-        discord.send("EliteSlayer started — targeting " + gui.selectedMonster);
-        Logger.log("[EliteSlayer] Started on " + gui.selectedMonster);
+        discord.send("EliteSlayer v2.0 started — targeting " + gui.selectedMonster);
+        Logger.log("[EliteSlayer] Started on " + gui.selectedMonster
+            + " with HumanReaction, ThreatDetector, WorldHop, DynamicMouse, TaskLearner");
     }
 
     @Override
@@ -138,9 +158,11 @@ public final class EliteSlayer extends AbstractScript {
 
     @Override
     public void onExit() {
+        if (learner != null) learner.logSummary();
         if (discord != null) {
             discord.send("EliteSlayer stopped — kills: " + Telemetry.getKillCount()
-                + ", gp: " + Telemetry.getGpLooted());
+                + ", gp: " + Telemetry.getGpLooted()
+                + ", hops: " + Telemetry.getWorldHops());
             discord.shutdown();
         }
         if (state != null) {
