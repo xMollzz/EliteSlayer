@@ -39,13 +39,12 @@ class EntropyMonitorTest {
 
     @Test
     void uniformDistributionGivesHighEntropy() {
-        // Record 10 distinct actions multiple times each
-        for (int round = 0; round < 10; round++) {
-            for (int actionId = 0; actionId < 10; actionId++) {
-                monitor.record(actionId);
-            }
+        // Record 100 distinct actions to fill the window completely —
+        // each action appears exactly once, giving maximal entropy.
+        for (int actionId = 0; actionId < 100; actionId++) {
+            monitor.record(actionId);
         }
-        // Uniform distribution → normalised entropy should be close to 1.0
+        // Uniform distribution across 100 distinct values → normalised entropy ≈ 1.0
         assertTrue(monitor.getNormalized() > 0.9,
             "Uniform distribution should have normalised entropy > 0.9, got: " + monitor.getNormalized());
     }
