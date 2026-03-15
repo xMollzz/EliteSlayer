@@ -1,5 +1,6 @@
 package eliteslayer.nodes;
 
+import eliteslayer.Constants;
 import eliteslayer.behavior.Node;
 import eliteslayer.behavior.Status;
 import eliteslayer.game.MonsterDef;
@@ -17,6 +18,7 @@ import org.dreambot.api.wrappers.interactive.NPC;
 import org.dreambot.api.wrappers.interactive.Player;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
@@ -60,23 +62,17 @@ public final class CombatNode implements Node {
     private int  lastFailedNpcId = -1;
     /** Timestamp of the last failed attack. */
     private long lastFailedTime  = 0L;
-    /** Re-aggro penalty window (ms). */
-    private static final long REAGGRO_PENALTY_MS = 30_000L;
-    /** OSRS idle animation ID (no animation playing). */
-    private static final int IDLE_ANIMATION_ID = -1;
 
     public CombatNode(MonsterDef monster,
                       HumanReactionEngine reactions,
                       DynamicTaskLearner learner) {
-        this.monster   = monster;
+        this.monster   = Objects.requireNonNull(monster, "MonsterDef must not be null");
         this.reactions = reactions;
         this.learner   = learner;
     }
 
     @Override
     public Status tick() {
-        if (monster == null) return Status.FAILURE;
-
         Player local = Players.localPlayer();
         if (local == null) return Status.FAILURE;
 
@@ -91,6 +87,11 @@ public final class CombatNode implements Node {
         }
         wasInCombat = inCombat;
 
+        // Invalidate stale target reference
+        if (currentTarget != null && !currentTarget.exists()) {
+            currentTarget = null;
+        }
+
         // Already in combat — just wait
         if (inCombat) {
             Telemetry.setState("COMBAT");
@@ -100,18 +101,18 @@ public final class CombatNode implements Node {
 
         // Walk to fight area if needed
         Tile fightTile = new Tile(monster.fightTile[0], monster.fightTile[1], monster.fightTile[2]);
-        if (local.getTile().distance(fightTile) > 15) {
+        if (local.getTile().distance(fightTile) > Constants.COMBAT_RANGE) {
             Telemetry.setState("WALK_TO_FIGHT");
             Telemetry.setAction("Walking to " + monster.name + " area");
-            Navigator.walkTo(fightTile, 15_000L);
+            Navigator.walkTo(fightTile, Constants.WALK_TO_FIGHT_TIMEOUT);
             return Status.RUNNING;
         }
 
         NPC target = selectBestTarget(local, monster.ids);
-        if (target == null) {
+        if (target == null || !target.exists()) {
             Telemetry.setState("WAITING");
             Telemetry.setAction("No valid target");
-            Sleep.sleep(600);
+            Sleep.sleep(Constants.NO_TARGET_SLEEP_MS);
             return Status.RUNNING;
         }
 
@@ -126,7 +127,7 @@ public final class CombatNode implements Node {
         boolean ok = SleepUtil.retryInteract(target, "Attack", 3);
         if (ok) {
             currentTarget = target;
-            Sleep.sleepUntil(local::isInCombat, 4_000);
+            Sleep.sleepUntil(local::isInCombat, Constants.COMBAT_START_TIMEOUT);
         } else {
             // Record failure for learning and re-aggro penalty
             lastFailedNpcId = target.getID();
@@ -179,34 +180,36 @@ public final class CombatNode implements Node {
             double dist  = npc.getTile().distance(localTile);
 
             // Base score
-            double score = 1000.0
-                - dist * 15.0
-                - (npc.isInCombat()     ? 300.0 : 0.0)
-                - (npc.getHealthPercent() * 2.0)
-                + (npc.isInteractable() ? 50.0  : 0.0);
+            double score = Constants.SCORE_BASE
+                - dist * Constants.SCORE_DISTANCE_WEIGHT
+                - (npc.isInCombat()     ? Constants.SCORE_IN_COMBAT_PENALTY : 0.0)
+                - (npc.getHealthPercent() * Constants.SCORE_HEALTH_WEIGHT)
+                + (npc.isInteractable() ? Constants.SCORE_INTERACTABLE_BONUS : 0.0);
 
-            // NEW: Idle animation bonus — idle NPCs are easier to engage
-            if (npc.getAnimation() == IDLE_ANIMATION_ID) {
-                score += 30.0;
+            // Idle animation bonus — idle NPCs are easier to engage
+            if (npc.getAnimation() == Constants.IDLE_ANIMATION_ID) {
+                score += Constants.SCORE_IDLE_BONUS;
             }
 
-            // NEW: Crowd penalty — NPCs near other players are less desirable
-            int playersNearNpc = countPlayersNear(npc.getTile(), nearbyPlayers, local, 4);
-            score -= playersNearNpc * 25.0;
+            // Crowd penalty — NPCs near other players are less desirable
+            int playersNearNpc = countPlayersNear(npc.getTile(), nearbyPlayers, local,
+                                                   Constants.CROWD_RADIUS);
+            score -= playersNearNpc * Constants.SCORE_CROWD_PENALTY;
 
-            // NEW: Re-aggro penalty — avoid NPCs we recently failed on
+            // Re-aggro penalty — avoid NPCs we recently failed on
             if (npc.getID() == lastFailedNpcId
-                    && System.currentTimeMillis() - lastFailedTime < REAGGRO_PENALTY_MS) {
-                score -= 150.0;
+                    && System.currentTimeMillis() - lastFailedTime < Constants.REAGGRO_PENALTY_MS) {
+                score -= Constants.SCORE_REAGGRO_PENALTY;
             }
 
-            // NEW: Learned reliability modifier
+            // Learned reliability modifier
             if (learner != null) {
                 score *= learner.getNpcWeight(npc.getID());
             }
 
-            // NEW: Small random jitter to prevent deterministic picks
-            score += ThreadLocalRandom.current().nextDouble(-15.0, 15.0);
+            // Small random jitter to prevent deterministic picks
+            score += ThreadLocalRandom.current().nextDouble(
+                -Constants.SCORE_JITTER_RANGE, Constants.SCORE_JITTER_RANGE);
 
             if (score > bestScore) {
                 bestScore = score;
