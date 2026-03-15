@@ -1,6 +1,5 @@
 package eliteslayer.systems;
 
-import java.util.Calendar;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
@@ -156,7 +155,7 @@ public final class BreakScheduler {
      * a higher value (longer / more frequent breaks), daytime returns 1.0.
      */
     private static double getTimeOfDayMultiplier() {
-        int hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY);
+        int hour = (int) ((System.currentTimeMillis() / 3_600_000L) % 24);
         // 00:00 - 05:59 → tired player, more breaks
         if (hour >= 0 && hour < 6) return 1.4;
         // 22:00 - 23:59 → getting tired

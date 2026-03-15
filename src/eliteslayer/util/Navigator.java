@@ -168,9 +168,7 @@ public final class Navigator {
     /** Enables run if it's off and energy is above the threshold. */
     private static void enableRunIfReady() {
         try {
-            if (!Walking.isRunEnabled()) {
-                // We can't directly check run energy in the stub, but
-                // DreamBot's Walking.toggleRun() is safe to call.
+            if (!Walking.isRunEnabled() && Walking.getRunEnergy() >= RUN_THRESHOLD) {
                 Walking.toggleRun();
             }
         } catch (Exception ignored) {

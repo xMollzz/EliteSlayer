@@ -48,6 +48,10 @@ public final class DynamicMouseBehavior {
     private static final double DRIFT_CHANCE       = 0.20;
     /** Maximum drift distance (pixels). */
     private static final int DRIFT_MAX_PX          = 30;
+    /** Game client viewport width (pixels). */
+    private static final int VIEWPORT_WIDTH        = 760;
+    /** Game client viewport height (pixels). */
+    private static final int VIEWPORT_HEIGHT       = 500;
 
     // ------------------------------------------------------------------ //
     //  Public API                                                          //
@@ -109,8 +113,8 @@ public final class DynamicMouseBehavior {
         int dx = pos.x + randomOffset(DRIFT_MAX_PX);
         int dy = pos.y + randomOffset(DRIFT_MAX_PX);
         // Clamp to screen
-        dx = Math.max(0, Math.min(760, dx));
-        dy = Math.max(0, Math.min(500, dy));
+        dx = Math.max(0, Math.min(VIEWPORT_WIDTH, dx));
+        dy = Math.max(0, Math.min(VIEWPORT_HEIGHT, dy));
 
         moveTo(dx, dy);
     }
@@ -129,7 +133,7 @@ public final class DynamicMouseBehavior {
             edgeX = -5;
             edgeY = pos.y + randomOffset(40);
         } else {
-            edgeX = 770;
+            edgeX = VIEWPORT_WIDTH + 10;
             edgeY = pos.y + randomOffset(40);
         }
 

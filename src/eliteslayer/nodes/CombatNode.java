@@ -62,6 +62,8 @@ public final class CombatNode implements Node {
     private long lastFailedTime  = 0L;
     /** Re-aggro penalty window (ms). */
     private static final long REAGGRO_PENALTY_MS = 30_000L;
+    /** OSRS idle animation ID (no animation playing). */
+    private static final int IDLE_ANIMATION_ID = -1;
 
     public CombatNode(MonsterDef monster,
                       HumanReactionEngine reactions,
@@ -183,8 +185,8 @@ public final class CombatNode implements Node {
                 - (npc.getHealthPercent() * 2.0)
                 + (npc.isInteractable() ? 50.0  : 0.0);
 
-            // NEW: Idle animation bonus (animation == -1 means idle in OSRS)
-            if (npc.getAnimation() == -1) {
+            // NEW: Idle animation bonus — idle NPCs are easier to engage
+            if (npc.getAnimation() == IDLE_ANIMATION_ID) {
                 score += 30.0;
             }
 

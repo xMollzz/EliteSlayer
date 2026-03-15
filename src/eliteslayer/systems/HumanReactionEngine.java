@@ -129,6 +129,6 @@ public final class HumanReactionEngine {
     }
 
     private static void sleep(long ms) {
-        if (ms > 0) Sleep.sleep((int) ms);
+        if (ms > 0) Sleep.sleep((int) Math.min(ms, CEILING_MS));
     }
 }

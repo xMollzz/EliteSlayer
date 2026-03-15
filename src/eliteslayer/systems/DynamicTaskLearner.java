@@ -49,6 +49,9 @@ public final class DynamicTaskLearner {
     /** Per-anti-ban-action ID → outcomes. */
     private final Map<Integer, Outcome> antiBanOutcomes = new HashMap<>();
 
+    /** Minimum loot samples before the threshold adjusts. */
+    private static final int MIN_SAMPLES_FOR_THRESHOLD = 10;
+
     /** Running average GP per loot pick-up. */
     private double avgLootGp   = 0.0;
     private int    lootSamples = 0;
@@ -96,7 +99,7 @@ public final class DynamicTaskLearner {
      * If the average is high, raise the threshold to skip cheap drops.
      */
     public int getSuggestedLootThreshold() {
-        if (lootSamples < 10) return 1_000;   // default until enough data
+        if (lootSamples < MIN_SAMPLES_FOR_THRESHOLD) return 1_000;   // default until enough data
         return Math.max(500, (int) (avgLootGp * 0.3));
     }
 

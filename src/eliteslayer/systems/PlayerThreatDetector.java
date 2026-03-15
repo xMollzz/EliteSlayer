@@ -163,7 +163,9 @@ public final class PlayerThreatDetector {
         if (name == null) return false;
         // Jagex moderator names often begin with "Mod " prefix
         if (name.startsWith("Mod ")) return true;
-        // Crown character (Unicode) — some clients expose it in the name string
+        // Crown character (Unicode control chars) — in some DreamBot builds the
+        // Jagex moderator crown icon is exposed as a low-ASCII control character
+        // (char < 32) prepended to the player name string.
         if (name.length() > 0 && name.charAt(0) < 32) return true;
         return false;
     }
