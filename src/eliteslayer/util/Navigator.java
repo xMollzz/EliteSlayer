@@ -7,6 +7,8 @@ import org.dreambot.api.utilities.Logger;
 import org.dreambot.api.utilities.Sleep;
 import org.dreambot.api.wrappers.interactive.Player;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
@@ -25,6 +27,8 @@ import java.util.concurrent.ThreadLocalRandom;
  *       and task-learner.</li>
  *   <li><b>Anti-pattern walking</b> — small random offsets are added to the
  *       target tile so the exact same coordinate isn't clicked every time.</li>
+ *   <li><b>Path result cache</b> — recent navigation results are cached so
+ *       repeated walks to the same destination avoid redundant pathfinding.</li>
  * </ul>
  */
 public final class Navigator {
@@ -38,10 +42,54 @@ public final class Navigator {
     /** Energy threshold to auto-enable run. */
     private static final int RUN_THRESHOLD  = 30;
 
+    // ---------------------------------------------------------------------- //
+    //  Navigation path cache                                                  //
+    // ---------------------------------------------------------------------- //
+
+    /** Maximum number of cached path results. */
+    private static final int CACHE_MAX_SIZE = 64;
+    /** Time-to-live for cache entries (ms). */
+    private static final long CACHE_TTL_MS  = 10_000L;
+
+    private static final class CacheEntry {
+        final boolean success;
+        final long    timestamp;
+        CacheEntry(boolean success) {
+            this.success   = success;
+            this.timestamp = System.currentTimeMillis();
+        }
+        boolean isExpired() {
+            return System.currentTimeMillis() - timestamp > CACHE_TTL_MS;
+        }
+    }
+
+    /** LRU cache keyed by "{startX},{startY}->{destX},{destY},{plane}". */
+    private static final Map<String, CacheEntry> pathCache =
+        new LinkedHashMap<String, CacheEntry>(CACHE_MAX_SIZE, 0.75f, true) {
+            @Override
+            protected boolean removeEldestEntry(Map.Entry<String, CacheEntry> eldest) {
+                return size() > CACHE_MAX_SIZE || eldest.getValue().isExpired();
+            }
+        };
+
+    /** Clears the navigation cache (e.g. after world-hop or teleport). */
+    public static void clearCache() {
+        pathCache.clear();
+    }
+
+    private static String cacheKey(Tile from, Tile to) {
+        return from.getX() + "," + from.getY() + "->"
+             + to.getX()   + "," + to.getY()   + "," + to.getPlane();
+    }
+
     /**
      * Walks to {@code tile} and waits up to {@code timeoutMs} for the player
      * to arrive within 3 tiles.  Long distances are broken into segments
      * and each segment is walked individually.
+     *
+     * <p>Results are cached for up to {@value #CACHE_TTL_MS} ms so that
+     * repeated walks to the same tile from the same region do not recompute
+     * the path.</p>
      *
      * @return true if the player arrived, false on timeout or walk failure.
      */
@@ -59,14 +107,36 @@ public final class Navigator {
             return false;
         }
 
-        double dist = local.getTile().distance(tile);
+        Tile localTile = local.getTile();
+
+        // Check cache — skip walk if we recently succeeded/failed on the
+        // exact same start→dest pair.
+        String key = cacheKey(localTile, tile);
+        CacheEntry cached = pathCache.get(key);
+        if (cached != null && !cached.isExpired()) {
+            if (!cached.success) {
+                // Known-bad path — avoid redundant retry
+                Telemetry.recordPathFail();
+                return false;
+            }
+            // Already near the destination — treat as success
+            if (localTile.distance(tile) < 3) {
+                return true;
+            }
+        }
+
+        double dist = localTile.distance(tile);
+        boolean result;
 
         // For long distances, walk via intermediate waypoints
         if (dist > SEGMENT_LENGTH) {
-            return walkSegmented(local.getTile(), tile, timeoutMs);
+            result = walkSegmented(localTile, tile, timeoutMs);
+        } else {
+            result = walkDirect(tile, timeoutMs);
         }
 
-        return walkDirect(tile, timeoutMs);
+        pathCache.put(key, new CacheEntry(result));
+        return result;
     }
 
     /**
