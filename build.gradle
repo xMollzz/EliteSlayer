@@ -1,0 +1,43 @@
+plugins {
+    id 'java'
+}
+
+group   = 'eliteslayer'
+version = '1.0'
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_11
+    targetCompatibility = JavaVersion.VERSION_11
+}
+
+sourceSets {
+    main {
+        java {
+            srcDir 'src'
+        }
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // DreamBot client JAR — place client.jar in the libs/ folder.
+    // Copy it from your DreamBot installation:
+    //   Windows: C:\Users\<you>\DreamBot\BotData\client.jar
+    //   macOS  : ~/DreamBot/BotData/client.jar
+    //   Linux  : ~/DreamBot/BotData/client.jar
+    compileOnly fileTree(dir: 'libs', include: ['*.jar'])
+}
+
+jar {
+    archiveBaseName = 'EliteSlayer'
+    archiveVersion  = '1.0'
+
+    manifest {
+        attributes(
+            'Main-Class': 'eliteslayer.EliteSlayer'
+        )
+    }
+}
