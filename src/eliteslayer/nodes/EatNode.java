@@ -1,0 +1,67 @@
+package eliteslayer.nodes;
+
+import eliteslayer.behavior.Node;
+import eliteslayer.behavior.Status;
+import eliteslayer.util.SleepUtil;
+import eliteslayer.util.Telemetry;
+import org.dreambot.api.methods.container.impl.Inventory;
+import org.dreambot.api.methods.skills.Skill;
+import org.dreambot.api.methods.skills.Skills;
+import org.dreambot.api.utilities.Logger;
+import org.dreambot.api.wrappers.items.Item;
+
+/**
+ * Eats food when HP falls below the eat threshold.
+ */
+public final class EatNode implements Node {
+
+    /** HP percentage below which we eat. Configurable via Config.eatThreshold. */
+    private final int eatThresholdPercent;
+
+    public EatNode(int eatThresholdPercent) {
+        this.eatThresholdPercent = eatThresholdPercent;
+    }
+
+    @Override
+    public Status tick() {
+        int baseHp = Skills.getLevel(Skill.HITPOINTS);
+        int currHp = Skills.getBoostedLevel(Skill.HITPOINTS);
+
+        if (baseHp == 0) return Status.FAILURE;
+
+        int hpPercent = (currHp * 100) / baseHp;
+        if (hpPercent > eatThresholdPercent) {
+            return Status.FAILURE;   // HP fine — nothing to do
+        }
+
+        Telemetry.setState("EAT");
+
+        // Look for any food in inventory using a set of known food name fragments
+        final java.util.Set<String> FOOD_NAMES = new java.util.HashSet<>(java.util.Arrays.asList(
+            "shark", "anglerfish", "manta ray", "lobster", "swordfish", "tuna", "bass",
+            "cake", "bread", "potato", "stew", "pie", "karambwan", "food"
+        ));
+
+        Item food = Inventory.get(item -> {
+            if (item == null || item.getName() == null) return false;
+            String lower = item.getName().toLowerCase();
+            for (String frag : FOOD_NAMES) {
+                if (lower.contains(frag)) return true;
+            }
+            return false;
+        });
+
+        if (food == null) {
+            Logger.warn("[EatNode] No food found in inventory.");
+            return Status.FAILURE;
+        }
+
+        Telemetry.setAction("Eating " + food.getName());
+        Logger.log("[EatNode] Eating " + food.getName() + " at " + hpPercent + "% HP.");
+        boolean ok = SleepUtil.retryInteract(food, "Eat", 3);
+        if (ok) {
+            org.dreambot.api.utilities.Sleep.sleep(300, 600);
+        }
+        return ok ? Status.SUCCESS : Status.FAILURE;
+    }
+}
