@@ -80,7 +80,7 @@ public final class EnvironmentAnalyzer {
     //  Internal                                                            //
     // ------------------------------------------------------------------ //
 
-    /** Peak hours: 17:00 – 23:00 local time and weekends. */
+    /** Peak hours: 17:00 – 23:00 local time. */
     private boolean computePeakHours() {
         int hour = getHourOfDay();
         return hour >= 17 && hour <= 23;

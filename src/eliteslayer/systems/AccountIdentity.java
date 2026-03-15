@@ -27,6 +27,7 @@ public final class AccountIdentity {
     private long totalPlayTimeMs;
     private long lastSessionStartMs;
     private long lastSessionEndMs;
+    private boolean sessionActive;
 
     // ------------------------------------------------------------------ //
     //  Construction / lifecycle                                             //
@@ -43,12 +44,15 @@ public final class AccountIdentity {
     public void onSessionStart() {
         totalSessions++;
         lastSessionStartMs = System.currentTimeMillis();
+        sessionActive = true;
         Logger.log("[AccountIdentity] Session #" + totalSessions
             + " — veteran factor: " + String.format("%.2f", getVeteranFactor()));
     }
 
     /** Call once at script exit. */
     public void onSessionEnd() {
+        if (!sessionActive) return;
+        sessionActive = false;
         long now = System.currentTimeMillis();
         long sessionLength = now - lastSessionStartMs;
         totalPlayTimeMs += sessionLength;
@@ -93,7 +97,7 @@ public final class AccountIdentity {
      * Average session length in milliseconds, or 0 if no completed sessions.
      */
     public long getAverageSessionLengthMs() {
-        int completed = totalSessions - 1;   // current session is still running
+        int completed = sessionActive ? totalSessions - 1 : totalSessions;
         if (completed <= 0) return 0L;
         return totalPlayTimeMs / completed;
     }
