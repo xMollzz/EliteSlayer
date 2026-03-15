@@ -1,15 +1,17 @@
 package eliteslayer.nodes;
 
+import eliteslayer.ScriptContext;
 import eliteslayer.behavior.Node;
 import eliteslayer.behavior.Status;
 import eliteslayer.game.MonsterDef;
+import eliteslayer.util.EventBus;
 import eliteslayer.util.Navigator;
+import eliteslayer.util.ScriptLogger;
 import eliteslayer.util.SleepUtil;
 import eliteslayer.util.Telemetry;
 import org.dreambot.api.methods.interactive.NPCs;
 import org.dreambot.api.methods.interactive.Players;
 import org.dreambot.api.methods.map.Tile;
-import org.dreambot.api.utilities.Logger;
 import org.dreambot.api.utilities.Sleep;
 import org.dreambot.api.wrappers.interactive.NPC;
 import org.dreambot.api.wrappers.interactive.Player;
@@ -28,14 +30,18 @@ import java.util.List;
 public final class CombatNode implements Node {
 
     private final MonsterDef monster;
+    private final EventBus   eventBus;
+    private final ScriptLogger log;
 
     /** NPC we most recently issued an Attack command to. */
     private NPC  currentTarget  = null;
     /** True if local player was in combat on the previous tick. */
     private boolean wasInCombat = false;
 
-    public CombatNode(MonsterDef monster) {
-        this.monster = monster;
+    public CombatNode(ScriptContext ctx) {
+        this.monster  = ctx.monster;
+        this.eventBus = ctx.eventBus;
+        this.log      = new ScriptLogger("CombatNode");
     }
 
     @Override
@@ -50,7 +56,8 @@ public final class CombatNode implements Node {
         // Kill detection: we were fighting, now we're not, and the NPC vanished
         if (wasInCombat && !inCombat && currentTarget != null && !currentTarget.exists()) {
             Telemetry.addKill();
-            Logger.log("[CombatNode] Kill registered. Total: " + Telemetry.getKillCount());
+            log.info("Kill registered. Total: " + Telemetry.getKillCount());
+            eventBus.publish("kill", monster.name);
             currentTarget = null;
         }
         wasInCombat = inCombat;
@@ -82,7 +89,7 @@ public final class CombatNode implements Node {
         Telemetry.setState("ATTACKING");
         Telemetry.setTarget(target.getName() != null ? target.getName() : monster.name);
         Telemetry.setAction("Attacking " + Telemetry.getTarget());
-        Logger.log("[CombatNode] Attacking " + Telemetry.getTarget());
+        log.info("Attacking " + Telemetry.getTarget());
 
         boolean ok = SleepUtil.retryInteract(target, "Attack", 3);
         if (ok) {

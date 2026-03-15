@@ -1,11 +1,12 @@
 package eliteslayer.nodes;
 
+import eliteslayer.ScriptContext;
 import eliteslayer.behavior.Node;
 import eliteslayer.behavior.Status;
 import eliteslayer.systems.CrowdTracker;
 import eliteslayer.systems.EntropyMonitor;
+import eliteslayer.util.ScriptLogger;
 import eliteslayer.util.Telemetry;
-import org.dreambot.api.utilities.Logger;
 
 /**
  * Safety guard: fails (allowing the tree to continue) when everything is
@@ -18,10 +19,12 @@ public final class SafetyNode implements Node {
 
     private final EntropyMonitor entropyMonitor;
     private final CrowdTracker   crowdTracker;
+    private final ScriptLogger   log;
 
-    public SafetyNode(EntropyMonitor entropyMonitor, CrowdTracker crowdTracker) {
-        this.entropyMonitor = entropyMonitor;
-        this.crowdTracker   = crowdTracker;
+    public SafetyNode(ScriptContext ctx) {
+        this.entropyMonitor = ctx.entropy;
+        this.crowdTracker   = ctx.crowd;
+        this.log            = new ScriptLogger("SafetyNode");
     }
 
     @Override
@@ -30,7 +33,7 @@ public final class SafetyNode implements Node {
         crowdTracker.update();
 
         if (entropyMonitor.getNormalized() < ENTROPY_THRESHOLD) {
-            Logger.warn("[SafetyNode] Entropy too low (" +
+            log.warn("Entropy too low (" +
                 String.format("%.2f", entropyMonitor.getNormalized()) +
                 ") — pausing.");
             Telemetry.setAction("Low-entropy pause");
@@ -38,7 +41,7 @@ public final class SafetyNode implements Node {
         }
 
         if (crowdTracker.isCrowded()) {
-            Logger.warn("[SafetyNode] Area is crowded (" +
+            log.warn("Area is crowded (" +
                 crowdTracker.getCurrentCrowd() + " players nearby) — pausing.");
             Telemetry.setAction("Crowd pause");
             return Status.RUNNING;

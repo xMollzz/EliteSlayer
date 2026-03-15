@@ -1,16 +1,17 @@
 package eliteslayer.nodes;
 
+import eliteslayer.ScriptContext;
 import eliteslayer.behavior.Node;
 import eliteslayer.behavior.Status;
 import eliteslayer.game.MonsterDef;
 import eliteslayer.util.Navigator;
+import eliteslayer.util.ScriptLogger;
 import eliteslayer.util.SleepUtil;
 import eliteslayer.util.Telemetry;
 import org.dreambot.api.methods.bank.Bank;
 import org.dreambot.api.methods.container.impl.Inventory;
 import org.dreambot.api.methods.interactive.Players;
 import org.dreambot.api.methods.map.Tile;
-import org.dreambot.api.utilities.Logger;
 import org.dreambot.api.utilities.Sleep;
 import org.dreambot.api.wrappers.interactive.Player;
 
@@ -34,10 +35,12 @@ public final class BankNode implements Node {
 
     private final MonsterDef monster;
     private final int        foodAmount;
+    private final ScriptLogger log;
 
-    public BankNode(MonsterDef monster, int foodAmount) {
-        this.monster    = monster;
-        this.foodAmount = foodAmount;
+    public BankNode(ScriptContext ctx) {
+        this.monster    = ctx.monster;
+        this.foodAmount = ctx.foodAmount;
+        this.log        = new ScriptLogger("BankNode");
     }
 
     @Override

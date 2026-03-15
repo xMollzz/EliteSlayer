@@ -1,13 +1,14 @@
 package eliteslayer.nodes;
 
+import eliteslayer.ScriptContext;
 import eliteslayer.behavior.Node;
 import eliteslayer.behavior.Status;
+import eliteslayer.util.ScriptLogger;
 import eliteslayer.util.SleepUtil;
 import eliteslayer.util.Telemetry;
 import org.dreambot.api.methods.container.impl.Inventory;
 import org.dreambot.api.methods.skills.Skill;
 import org.dreambot.api.methods.skills.Skills;
-import org.dreambot.api.utilities.Logger;
 import org.dreambot.api.wrappers.items.Item;
 
 /**
@@ -17,6 +18,7 @@ public final class EatNode implements Node {
 
     /** HP percentage below which we eat. Configurable via Config.eatThreshold. */
     private final int eatThresholdPercent;
+    private final ScriptLogger log;
 
     /** Static set of food name fragments — built once, not on every tick. */
     private static final java.util.Set<String> FOOD_NAMES;
@@ -27,8 +29,9 @@ public final class EatNode implements Node {
         ));
     }
 
-    public EatNode(int eatThresholdPercent) {
-        this.eatThresholdPercent = eatThresholdPercent;
+    public EatNode(ScriptContext ctx) {
+        this.eatThresholdPercent = ctx.eatThreshold;
+        this.log = new ScriptLogger("EatNode");
     }
 
     @Override
@@ -56,12 +59,12 @@ public final class EatNode implements Node {
         });
 
         if (food == null) {
-            Logger.warn("[EatNode] No food found in inventory.");
+            log.warn("No food found in inventory.");
             return Status.FAILURE;
         }
 
         Telemetry.setAction("Eating " + food.getName());
-        Logger.log("[EatNode] Eating " + food.getName() + " at " + hpPercent + "% HP.");
+        log.info("Eating " + food.getName() + " at " + hpPercent + "% HP.");
         boolean ok = SleepUtil.retryInteract(food, "Eat", 3);
         if (ok) {
             org.dreambot.api.utilities.Sleep.sleep(300, 600);

@@ -1,14 +1,15 @@
 package eliteslayer.nodes;
 
+import eliteslayer.ScriptContext;
 import eliteslayer.behavior.Node;
 import eliteslayer.behavior.Status;
 import eliteslayer.util.Navigator;
+import eliteslayer.util.ScriptLogger;
 import eliteslayer.util.Telemetry;
 import org.dreambot.api.methods.container.impl.Inventory;
 import org.dreambot.api.methods.interactive.NPCs;
 import org.dreambot.api.methods.interactive.Players;
 import org.dreambot.api.methods.map.Tile;
-import org.dreambot.api.utilities.Logger;
 import org.dreambot.api.utilities.Sleep;
 import org.dreambot.api.wrappers.interactive.NPC;
 import org.dreambot.api.wrappers.interactive.Player;
@@ -22,11 +23,13 @@ public final class MuleNode implements Node {
     private final String  muleName;
     private final boolean enabled;
     private final int[]   mulePosition;  // {x, y, plane}
+    private final ScriptLogger log;
 
-    public MuleNode(boolean enabled, String muleName, int[] mulePosition) {
-        this.enabled      = enabled;
-        this.muleName     = muleName;
-        this.mulePosition = mulePosition;
+    public MuleNode(ScriptContext ctx) {
+        this.enabled      = ctx.useMule;
+        this.muleName     = ctx.muleName;
+        this.mulePosition = ctx.mulePosition;
+        this.log          = new ScriptLogger("MuleNode");
     }
 
     @Override
@@ -50,7 +53,7 @@ public final class MuleNode implements Node {
         // Find mule player
         Player mule = findMule();
         if (mule == null) {
-            Logger.warn("[MuleNode] Mule player '" + muleName + "' not found nearby.");
+            log.warn("Mule player '" + muleName + "' not found nearby.");
             return Status.FAILURE;
         }
 
@@ -79,7 +82,7 @@ public final class MuleNode implements Node {
 
         Telemetry.addMuleTransfer();
         Telemetry.recordSuccess();
-        Logger.log("[MuleNode] Trade with " + muleName + " complete.");
+        log.info("Trade with " + muleName + " complete.");
         return Status.SUCCESS;
     }
 

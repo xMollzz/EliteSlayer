@@ -1,15 +1,17 @@
 package eliteslayer.nodes;
 
+import eliteslayer.ScriptContext;
 import eliteslayer.behavior.Node;
 import eliteslayer.behavior.Status;
+import eliteslayer.util.EventBus;
 import eliteslayer.util.PriceCache;
+import eliteslayer.util.ScriptLogger;
 import eliteslayer.util.SleepUtil;
 import eliteslayer.util.Telemetry;
 import org.dreambot.api.methods.container.impl.Inventory;
 import org.dreambot.api.methods.grounditems.GroundItems;
 import org.dreambot.api.methods.interactive.Players;
 import org.dreambot.api.methods.map.Tile;
-import org.dreambot.api.utilities.Logger;
 import org.dreambot.api.wrappers.interactive.Player;
 import org.dreambot.api.wrappers.items.GroundItem;
 
@@ -49,6 +51,14 @@ public final class LootNode implements Node {
         "clue scroll", "ensouled head", "rune", "dragon", "crystal key", "half of a key"
     };
 
+    private final EventBus     eventBus;
+    private final ScriptLogger log;
+
+    public LootNode(ScriptContext ctx) {
+        this.eventBus = ctx.eventBus;
+        this.log      = new ScriptLogger("LootNode");
+    }
+
     @Override
     public Status tick() {
         if (Inventory.isFull()) return Status.FAILURE;
@@ -78,11 +88,12 @@ public final class LootNode implements Node {
 
         Telemetry.setState("LOOT");
         Telemetry.setAction("Looting " + best.getName() + " (" + bestVal + " gp)");
-        Logger.log("[LootNode] Looting " + best.getName());
+        log.info("Looting " + best.getName());
 
         boolean ok = SleepUtil.retryInteract(best, "Take", 3);
         if (ok) {
             Telemetry.addGp(bestVal);
+            eventBus.publish("loot", best.getName());
             org.dreambot.api.utilities.Sleep.sleep(400, 800);
         }
         return ok ? Status.SUCCESS : Status.FAILURE;

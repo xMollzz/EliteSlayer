@@ -1,12 +1,13 @@
 package eliteslayer.nodes;
 
+import eliteslayer.ScriptContext;
 import eliteslayer.behavior.Node;
 import eliteslayer.behavior.Status;
 import eliteslayer.util.PriceCache;
+import eliteslayer.util.ScriptLogger;
 import eliteslayer.util.Telemetry;
 import org.dreambot.api.methods.bank.Bank;
 import org.dreambot.api.methods.grandexchange.GrandExchange;
-import org.dreambot.api.utilities.Logger;
 import org.dreambot.api.utilities.Sleep;
 
 /**
@@ -42,9 +43,11 @@ public final class GENode implements Node {
     };
 
     private final boolean enabled;
+    private final ScriptLogger log;
 
-    public GENode(boolean enabled) {
-        this.enabled = enabled;
+    public GENode(ScriptContext ctx) {
+        this.enabled = ctx.useGE;
+        this.log     = new ScriptLogger("GENode");
     }
 
     @Override
@@ -134,7 +137,7 @@ public final class GENode implements Node {
             if (!GrandExchange.isOpen()) { GrandExchange.open(); Sleep.sleepUntil(GrandExchange::isOpen, 5_000); }
             int price = (int)(PriceCache.getPrice(id) * 1.10);
             GrandExchange.buyItem(id, needed, price);
-            Logger.log("[GENode] Buying " + needed + "x " + name + " @ " + price + " gp");
+            log.info("Buying " + needed + "x " + name + " @ " + price + " gp");
             Sleep.sleep(600, 1000);
         }
     }

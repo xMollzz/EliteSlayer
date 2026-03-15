@@ -1,13 +1,14 @@
 package eliteslayer.nodes;
 
+import eliteslayer.ScriptContext;
 import eliteslayer.behavior.Node;
 import eliteslayer.behavior.Status;
+import eliteslayer.util.ScriptLogger;
 import eliteslayer.util.Telemetry;
 import org.dreambot.api.methods.prayer.Prayer;
 import org.dreambot.api.methods.prayer.Prayers;
 import org.dreambot.api.methods.skills.Skill;
 import org.dreambot.api.methods.skills.Skills;
-import org.dreambot.api.utilities.Logger;
 
 /**
  * Activates the configured protection prayer when the player has prayer points
@@ -18,10 +19,12 @@ public final class PrayerNode implements Node {
 
     private final String prayerName;   // e.g. "PROTECT_FROM_MELEE"
     private final boolean usePrayer;
+    private final ScriptLogger log;
 
-    public PrayerNode(boolean usePrayer, String prayerName) {
-        this.usePrayer  = usePrayer;
-        this.prayerName = prayerName != null ? prayerName : "";
+    public PrayerNode(ScriptContext ctx) {
+        this.usePrayer  = ctx.usePrayer;
+        this.prayerName = ctx.protectionPrayer != null ? ctx.protectionPrayer : "";
+        this.log        = new ScriptLogger("PrayerNode");
     }
 
     @Override
@@ -43,7 +46,7 @@ public final class PrayerNode implements Node {
         if (Prayers.isActive(target)) return Status.FAILURE;   // already on
 
         Telemetry.setAction("Activating " + target.name());
-        Logger.log("[PrayerNode] Activating " + target.name());
+        log.info("Activating " + target.name());
         Prayers.toggle(target);
         org.dreambot.api.utilities.Sleep.sleep(300, 600);
         return Status.SUCCESS;
@@ -69,7 +72,7 @@ public final class PrayerNode implements Node {
             for (Prayer p : Prayer.values()) {
                 if (p.name().toLowerCase().contains(name.toLowerCase())) return p;
             }
-            Logger.warn("[PrayerNode] Unknown prayer: " + name);
+            log.warn("Unknown prayer: " + name);
             return null;
         }
     }

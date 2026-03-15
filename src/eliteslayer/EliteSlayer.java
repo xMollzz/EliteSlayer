@@ -14,7 +14,6 @@ import org.dreambot.api.methods.skills.Skills;
 import org.dreambot.api.script.AbstractScript;
 import org.dreambot.api.script.Category;
 import org.dreambot.api.script.ScriptManifest;
-import org.dreambot.api.utilities.Logger;
 
 import java.awt.*;
 import java.io.File;
@@ -29,14 +28,8 @@ import java.util.Arrays;
 )
 public final class EliteSlayer extends AbstractScript {
 
-    // Systems
-    private EntropyMonitor  entropy;
-    private CrowdTracker    crowd;
-    private AntiBanEngine   antiBan;
-    private BreakScheduler  breaks;
-    private StuckDetector   stuck;
-    private DiscordWebhook  discord;
-    private FileStateStore  state;
+    // Shared context
+    private ScriptContext ctx;
 
     // UI
     private ConfigGUI gui;
@@ -68,8 +61,8 @@ public final class EliteSlayer extends AbstractScript {
             ? localPlayer.getName().replaceAll("[^a-zA-Z0-9_-]", "_")
             : "unknown";
 
-        state   = new FileStateStore(new File(getDirectory(), playerName + "_state.cfg"));
-        discord = new DiscordWebhook(gui.discordWebhook);
+        FileStateStore state = new FileStateStore(new File(getDirectory(), playerName + "_state.cfg"));
+        DiscordWebhook discord = new DiscordWebhook(gui.discordWebhook);
 
         // Initialise telemetry — reset counters then restore crash-resume values
         Telemetry.reset();
@@ -79,58 +72,78 @@ public final class EliteSlayer extends AbstractScript {
         // Capture baseline XP for XP/hr calculation
         Telemetry.setStartXp(Skills.getTotalXP());
 
-        entropy = new EntropyMonitor();
-        crowd   = new CrowdTracker();
-        antiBan = new AntiBanEngine(entropy);
-        breaks  = new BreakScheduler();
-        stuck   = new StuckDetector(this::stop);
-        hud     = new ScriptHUD(entropy, crowd);
+        // Restore GUI config from saved state (config serialization)
+        gui.loadFrom(state);
+
+        EntropyMonitor entropy = new EntropyMonitor();
+        CrowdTracker   crowd   = new CrowdTracker();
+        AntiBanEngine  antiBan = new AntiBanEngine(entropy);
+        BreakScheduler breaks  = new BreakScheduler();
+        StuckDetector  stuck   = new StuckDetector(this::stop);
+        EventBus       eventBus = new EventBus();
+        Profiler       profiler = new Profiler();
+        ScriptLogger   logger  = new ScriptLogger("EliteSlayer");
 
         MonsterDef monster = MonsterDatabase.get(gui.selectedMonster);
         int[]      mulePos = parseMulePos(gui);
 
+        ctx = new ScriptContext(
+            entropy, crowd, antiBan, breaks, stuck,
+            eventBus, profiler, discord, state, logger,
+            monster, gui.useCannon, gui.usePrayer, gui.useGE,
+            gui.useMule, gui.muleName, mulePos,
+            gui.eatThreshold, gui.specThreshold,
+            gui.foodAmount, gui.potionAmount,
+            monster != null ? monster.protection : ""
+        );
+
+        hud = new ScriptHUD(entropy, crowd);
+
         tree = new Selector(Arrays.asList(
-            new SafetyNode(entropy, crowd),
-            new BreakNode(breaks),
-            new EatNode(gui.eatThreshold),
-            new PotionNode(),
-            new PrayerNode(gui.usePrayer, monster != null ? monster.protection : ""),
-            new SpecialAttackNode(gui.specThreshold),
-            new MuleNode(gui.useMule, gui.muleName, mulePos),
-            new BankNode(monster, gui.foodAmount),
-            new GENode(gui.useGE),
-            new CannonNode(gui.useCannon, monster),
-            new LootNode(),
-            new CombatNode(monster)
+            new SafetyNode(ctx),
+            new BreakNode(ctx),
+            new EatNode(ctx),
+            new PotionNode(ctx),
+            new PrayerNode(ctx),
+            new SpecialAttackNode(ctx),
+            new MuleNode(ctx),
+            new BankNode(ctx),
+            new GENode(ctx),
+            new CannonNode(ctx),
+            new LootNode(ctx),
+            new CombatNode(ctx)
         ));
 
         // Restore crash-resume counters
         discord.send("EliteSlayer started — targeting " + gui.selectedMonster);
-        Logger.log("[EliteSlayer] Started on " + gui.selectedMonster);
+        logger.info("Started on " + gui.selectedMonster);
     }
 
     @Override
     public int onLoop() {
-        stuck.check();
+        ctx.stuck.check();
 
         // Anti-ban: run every 4–8 seconds (randomised)
         long now = System.currentTimeMillis();
         long antiBanInterval = 4_000L + java.util.concurrent.ThreadLocalRandom.current().nextLong(4_000L);
         if (now - antiBanTick > antiBanInterval) {
-            antiBan.act();
+            ctx.antiBan.act();
             antiBanTick = now;
         }
 
-        // Script profiling (optimisation 10)
-        long tickStart = System.nanoTime();
+        // Script profiling
+        ctx.profiler.start("tree.tick");
         try {
             tree.tick();
         } catch (Exception e) {
-            Logger.error("[EliteSlayer] Uncaught exception in tree: " + e.getMessage());
+            ctx.logger.error("Uncaught exception in tree: " + e.getMessage());
         }
-        long tickNs = System.nanoTime() - tickStart;
-        if (tickNs > 5_000_000L) {  // > 5 ms
-            Logger.warn("[EliteSlayer] Slow tick: " + (tickNs / 1_000_000L) + " ms");
+        ctx.profiler.stop("tree.tick");
+
+        Profiler.Stats tickStats = ctx.profiler.getStats("tree.tick");
+        if (tickStats != null && tickStats.getMaxMs() > 5.0) {
+            ctx.logger.warn("Slow tick: " + String.format("%.1f", tickStats.getMaxMs()) + " ms (avg " +
+                String.format("%.1f", tickStats.getAverageMs()) + " ms)");
         }
 
         return 600;
@@ -138,16 +151,18 @@ public final class EliteSlayer extends AbstractScript {
 
     @Override
     public void onExit() {
-        if (discord != null) {
-            discord.send("EliteSlayer stopped — kills: " + Telemetry.getKillCount()
+        if (ctx != null && ctx.discord != null) {
+            ctx.discord.send("EliteSlayer stopped — kills: " + Telemetry.getKillCount()
                 + ", gp: " + Telemetry.getGpLooted());
-            discord.shutdown();
+            ctx.discord.shutdown();
         }
-        if (state != null) {
-            state.set("kills",    String.valueOf(Telemetry.getKillCount()));
-            state.set("gp",       String.valueOf(Telemetry.getGpLooted()));
-            state.set("tasks",    String.valueOf(Telemetry.getSessionTasks()));
-            state.save();
+        if (ctx != null && ctx.state != null) {
+            ctx.state.set("kills",    String.valueOf(Telemetry.getKillCount()));
+            ctx.state.set("gp",       String.valueOf(Telemetry.getGpLooted()));
+            ctx.state.set("tasks",    String.valueOf(Telemetry.getSessionTasks()));
+            // Save GUI config for next session (config serialization)
+            if (gui != null) gui.saveTo(ctx.state);
+            ctx.state.save();
         }
     }
 

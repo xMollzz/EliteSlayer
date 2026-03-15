@@ -16,6 +16,11 @@ sourceSets {
             srcDir 'src'
         }
     }
+    test {
+        java {
+            srcDir 'test'
+        }
+    }
 }
 
 repositories {
@@ -29,6 +34,14 @@ dependencies {
     //   macOS  : ~/DreamBot/BotData/client.jar
     //   Linux  : ~/DreamBot/BotData/client.jar
     compileOnly fileTree(dir: 'libs', include: ['*.jar'])
+
+    // Testing
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
+    testRuntimeOnly    'org.junit.platform:junit-platform-launcher:1.10.2'
+}
+
+test {
+    useJUnitPlatform()
 }
 
 jar {

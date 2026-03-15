@@ -1,16 +1,17 @@
 package eliteslayer.nodes;
 
+import eliteslayer.ScriptContext;
 import eliteslayer.behavior.Node;
 import eliteslayer.behavior.Status;
 import eliteslayer.game.MonsterDef;
 import eliteslayer.util.Navigator;
+import eliteslayer.util.ScriptLogger;
 import eliteslayer.util.SleepUtil;
 import eliteslayer.util.Telemetry;
 import org.dreambot.api.methods.container.impl.Inventory;
 import org.dreambot.api.methods.interactive.GameObjects;
 import org.dreambot.api.methods.interactive.Players;
 import org.dreambot.api.methods.map.Tile;
-import org.dreambot.api.utilities.Logger;
 import org.dreambot.api.utilities.Sleep;
 import org.dreambot.api.wrappers.interactive.GameObject;
 import org.dreambot.api.wrappers.interactive.Player;
@@ -28,14 +29,16 @@ public final class CannonNode implements Node {
 
     private final MonsterDef monster;
     private final boolean    enabled;
+    private final ScriptLogger log;
     private boolean          placed         = false;
     private long             lastReloadTime = 0L;
     /** Only reload once every 20 s to avoid spam-clicking the cannon. */
     private static final long RELOAD_COOLDOWN_MS = 20_000L;
 
-    public CannonNode(boolean enabled, MonsterDef monster) {
-        this.enabled = enabled;
-        this.monster = monster;
+    public CannonNode(ScriptContext ctx) {
+        this.enabled = ctx.useCannon;
+        this.monster = ctx.monster;
+        this.log     = new ScriptLogger("CannonNode");
     }
 
     @Override
@@ -72,7 +75,7 @@ public final class CannonNode implements Node {
     private Status placeCannon(Player local, Tile fightTile) {
         // Must have the cannon base in inventory
         if (!hasCannon()) {
-            Logger.warn("[CannonNode] No cannon pieces in inventory.");
+            log.warn("No cannon pieces in inventory.");
             return Status.FAILURE;
         }
 

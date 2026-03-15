@@ -1,10 +1,12 @@
 package eliteslayer.nodes;
 
+import eliteslayer.ScriptContext;
 import eliteslayer.behavior.Node;
 import eliteslayer.behavior.Status;
 import eliteslayer.systems.BreakScheduler;
+import eliteslayer.util.EventBus;
+import eliteslayer.util.ScriptLogger;
 import eliteslayer.util.Telemetry;
-import org.dreambot.api.utilities.Logger;
 import org.dreambot.api.utilities.Sleep;
 
 /**
@@ -15,9 +17,13 @@ import org.dreambot.api.utilities.Sleep;
 public final class BreakNode implements Node {
 
     private final BreakScheduler scheduler;
+    private final EventBus       eventBus;
+    private final ScriptLogger   log;
 
-    public BreakNode(BreakScheduler scheduler) {
-        this.scheduler = scheduler;
+    public BreakNode(ScriptContext ctx) {
+        this.scheduler = ctx.breaks;
+        this.eventBus  = ctx.eventBus;
+        this.log       = new ScriptLogger("BreakNode");
     }
 
     @Override
@@ -29,7 +35,8 @@ public final class BreakNode implements Node {
         long remaining = scheduler.breakTimeRemaining();
         Telemetry.setState("BREAK");
         Telemetry.setAction("Resting (" + (remaining / 60_000) + " min remaining)");
-        Logger.log("[BreakNode] On break — " + (remaining / 1000) + "s remaining.");
+        log.info("On break — " + (remaining / 1000) + "s remaining.");
+        eventBus.publish("break_active", remaining);
         Sleep.sleep(2_000);   // yield for 2 s then re-check
         return Status.RUNNING;
     }

@@ -2,6 +2,7 @@ package eliteslayer.ui;
 
 import eliteslayer.game.MonsterDatabase;
 import eliteslayer.game.MonsterDef;
+import eliteslayer.util.FileStateStore;
 
 import javax.swing.*;
 import javax.swing.border.TitledBorder;
@@ -242,5 +243,50 @@ public final class ConfigGUI extends JFrame {
         if (def == null) return;
         if (cannonCheck != null) cannonCheck.setSelected(def.usesCannon);
         if (prayerCheck != null) prayerCheck.setSelected(def.usesPrayer);
+    }
+
+    // ------------------------------------------------------------------ //
+    //  Config serialization                                                //
+    // ------------------------------------------------------------------ //
+
+    /**
+     * Saves the current GUI configuration values to the given state store.
+     * Called in {@code onExit()} so settings survive across sessions.
+     */
+    public void saveTo(FileStateStore store) {
+        store.set("cfg.monster",    selectedMonster);
+        store.set("cfg.cannon",     String.valueOf(useCannon));
+        store.set("cfg.prayer",     String.valueOf(usePrayer));
+        store.set("cfg.ge",         String.valueOf(useGE));
+        store.set("cfg.mule",       String.valueOf(useMule));
+        store.set("cfg.muleName",   muleName);
+        store.set("cfg.eat",        String.valueOf(eatThreshold));
+        store.set("cfg.spec",       String.valueOf(specThreshold));
+        store.set("cfg.food",       String.valueOf(foodAmount));
+        store.set("cfg.potion",     String.valueOf(potionAmount));
+        store.set("cfg.webhook",    discordWebhook);
+        store.set("cfg.muleX",      muleX);
+        store.set("cfg.muleY",      muleY);
+    }
+
+    /**
+     * Restores GUI configuration values from the given state store.
+     * Called in {@code onStart()} before building the behavior tree so that
+     * the previous session's settings are preserved.
+     */
+    public void loadFrom(FileStateStore store) {
+        selectedMonster = store.get("cfg.monster", selectedMonster);
+        useCannon       = store.getBoolean("cfg.cannon", useCannon);
+        usePrayer       = store.getBoolean("cfg.prayer", usePrayer);
+        useGE           = store.getBoolean("cfg.ge", useGE);
+        useMule         = store.getBoolean("cfg.mule", useMule);
+        muleName        = store.get("cfg.muleName", muleName);
+        eatThreshold    = store.getInt("cfg.eat", eatThreshold);
+        specThreshold   = store.getInt("cfg.spec", specThreshold);
+        foodAmount      = store.getInt("cfg.food", foodAmount);
+        potionAmount    = store.getInt("cfg.potion", potionAmount);
+        discordWebhook  = store.get("cfg.webhook", discordWebhook);
+        muleX           = store.get("cfg.muleX", muleX);
+        muleY           = store.get("cfg.muleY", muleY);
     }
 }

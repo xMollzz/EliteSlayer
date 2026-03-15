@@ -1,13 +1,14 @@
 package eliteslayer.nodes;
 
+import eliteslayer.ScriptContext;
 import eliteslayer.behavior.Node;
 import eliteslayer.behavior.Status;
+import eliteslayer.util.ScriptLogger;
 import eliteslayer.util.SleepUtil;
 import eliteslayer.util.Telemetry;
 import org.dreambot.api.methods.container.impl.Inventory;
 import org.dreambot.api.methods.skills.Skill;
 import org.dreambot.api.methods.skills.Skills;
-import org.dreambot.api.utilities.Logger;
 import org.dreambot.api.wrappers.items.Item;
 
 /**
@@ -15,6 +16,12 @@ import org.dreambot.api.wrappers.items.Item;
  * Supports Attack, Strength, Defence, Ranged and Magic potions.
  */
 public final class PotionNode implements Node {
+
+    private final ScriptLogger log;
+
+    public PotionNode(ScriptContext ctx) {
+        this.log = new ScriptLogger("PotionNode");
+    }
 
     @Override
     public Status tick() {
@@ -25,7 +32,7 @@ public final class PotionNode implements Node {
 
         Telemetry.setState("DRINK_POTION");
         Telemetry.setAction("Drinking " + potion.getName());
-        Logger.log("[PotionNode] Drinking " + potion.getName());
+        log.info("Drinking " + potion.getName());
         boolean ok = SleepUtil.retryInteract(potion, "Drink", 3);
         if (ok) org.dreambot.api.utilities.Sleep.sleep(400, 700);
         return ok ? Status.SUCCESS : Status.FAILURE;
