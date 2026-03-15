@@ -1,10 +1,14 @@
 package eliteslayer.systems;
 
 import org.dreambot.api.methods.interactive.Players;
+import org.dreambot.api.methods.tabs.Tab;
+import org.dreambot.api.methods.tabs.Tabs;
 import org.dreambot.api.utilities.Logger;
 import org.dreambot.api.utilities.Sleep;
 import org.dreambot.api.wrappers.interactive.Player;
 
+import java.awt.AWTException;
+import java.awt.Robot;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
@@ -92,9 +96,12 @@ public final class AntiBanEngine {
 
     private final long[]          lastTriggered = new long[ACTION_COUNT];
     private final EntropyMonitor  entropy;
+    /** Cached AWT Robot for keyboard simulation — null if AWTException prevented creation. */
+    private Robot awtRobot;
 
     public AntiBanEngine(EntropyMonitor entropy) {
         this.entropy = entropy;
+        try { this.awtRobot = new Robot(); } catch (AWTException ignored) { this.awtRobot = null; }
     }
 
     /**
@@ -181,17 +188,11 @@ public final class AntiBanEngine {
     }
 
     private void tabSwitch() {
-        org.dreambot.api.methods.tabs.Tab[] tabs = {
-            org.dreambot.api.methods.tabs.Tab.COMBAT,
-            org.dreambot.api.methods.tabs.Tab.SKILLS,
-            org.dreambot.api.methods.tabs.Tab.QUESTS,
-            org.dreambot.api.methods.tabs.Tab.INVENTORY,
-            org.dreambot.api.methods.tabs.Tab.EQUIPMENT,
-            org.dreambot.api.methods.tabs.Tab.PRAYER,
-            org.dreambot.api.methods.tabs.Tab.MAGIC
+        Tab[] tabs = {
+            Tab.COMBAT, Tab.SKILLS, Tab.QUESTS,
+            Tab.INVENTORY, Tab.EQUIPMENT, Tab.PRAYER, Tab.MAGIC
         };
-        org.dreambot.api.methods.tabs.Tab t = tabs[ThreadLocalRandom.current().nextInt(tabs.length)];
-        t.open();
+        Tabs.open(tabs[ThreadLocalRandom.current().nextInt(tabs.length)]);
     }
 
     private void randomSleep() {
@@ -199,12 +200,12 @@ public final class AntiBanEngine {
     }
 
     private void checkXP() {
-        org.dreambot.api.methods.tabs.Tab.SKILLS.open();
+        Tabs.open(Tab.SKILLS);
         Sleep.sleep(ThreadLocalRandom.current().nextInt(800, 2000));
     }
 
     private void hoverInventory() {
-        org.dreambot.api.methods.tabs.Tab.INVENTORY.open();
+        Tabs.open(Tab.INVENTORY);
         Sleep.sleep(ThreadLocalRandom.current().nextInt(400, 1200));
     }
 
@@ -238,7 +239,7 @@ public final class AntiBanEngine {
     }
 
     private void checkSkills() {
-        org.dreambot.api.methods.tabs.Tab.SKILLS.open();
+        Tabs.open(Tab.SKILLS);
         Sleep.sleep(ThreadLocalRandom.current().nextInt(1500, 4000));
     }
 
@@ -253,16 +254,16 @@ public final class AntiBanEngine {
     }
 
     private void zoomCamera() {
-        // Simulate zoom via keyboard — + to zoom in, - to zoom out
-        String key = ThreadLocalRandom.current().nextBoolean() ? "+" : "-";
+        if (awtRobot == null) return;
+        // Use = (zoom in) or - (zoom out) keys — VK_EQUALS is '+' on standard keyboards
+        int key = ThreadLocalRandom.current().nextBoolean()
+            ? java.awt.event.KeyEvent.VK_EQUALS
+            : java.awt.event.KeyEvent.VK_MINUS;
         int presses = ThreadLocalRandom.current().nextInt(1, 5);
         for (int i = 0; i < presses; i++) {
-            try {
-                java.awt.Robot robot = new java.awt.Robot();
-                robot.keyPress(key.charAt(0));
-                robot.keyRelease(key.charAt(0));
-                Sleep.sleep(ThreadLocalRandom.current().nextInt(80, 200));
-            } catch (java.awt.AWTException ignored) { /* best-effort */ }
+            awtRobot.keyPress(key);
+            awtRobot.keyRelease(key);
+            Sleep.sleep(ThreadLocalRandom.current().nextInt(80, 200));
         }
     }
 
@@ -278,7 +279,7 @@ public final class AntiBanEngine {
     }
 
     private void checkEquipment() {
-        org.dreambot.api.methods.tabs.Tab.EQUIPMENT.open();
+        Tabs.open(Tab.EQUIPMENT);
         Sleep.sleep(ThreadLocalRandom.current().nextInt(800, 2500));
     }
 }

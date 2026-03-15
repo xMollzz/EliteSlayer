@@ -5,7 +5,6 @@ import eliteslayer.systems.EntropyMonitor;
 import eliteslayer.util.Telemetry;
 import org.dreambot.api.methods.skills.Skill;
 import org.dreambot.api.methods.skills.Skills;
-
 import java.awt.*;
 
 /**
@@ -36,12 +35,10 @@ public final class ScriptHUD {
 
     private final EntropyMonitor entropy;
     private final CrowdTracker   crowd;
-    private final long           startTime;
 
     public ScriptHUD(EntropyMonitor entropy, CrowdTracker crowd) {
-        this.entropy   = entropy;
-        this.crowd     = crowd;
-        this.startTime = System.currentTimeMillis();
+        this.entropy = entropy;
+        this.crowd   = crowd;
     }
 
     /** Called from onPaint — renders the entire HUD. */
@@ -49,7 +46,7 @@ public final class ScriptHUD {
         Graphics2D g2 = (Graphics2D) g;
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
-        int lines  = 14;
+        int lines  = 16;
         int height = PADDING * 2 + lines * LINE_H + BAR_H * 2 + 10;
 
         // Background
@@ -64,13 +61,14 @@ public final class ScriptHUD {
         // Header
         g2.setFont(new Font("Arial", Font.BOLD, 13));
         g2.setColor(HEADER_COLOR);
-        g2.drawString("⚔ EliteSlayer", x, y);
+        g2.drawString("\u2694 EliteSlayer", x, y);
         y += LINE_H + 2;
 
         g2.setFont(new Font("Arial", Font.PLAIN, 11));
 
-        // Runtime
-        drawRow(g2, x, y, "Runtime:", formatTime(System.currentTimeMillis() - startTime)); y += LINE_H;
+        // Runtime (use Telemetry.getStartTime so it syncs with GP/hr calc)
+        long elapsed = System.currentTimeMillis() - Telemetry.getStartTime();
+        drawRow(g2, x, y, "Runtime:", formatTime(elapsed)); y += LINE_H;
 
         // State / target
         drawRow(g2, x, y, "State:",   Telemetry.getState());  y += LINE_H;
@@ -78,11 +76,11 @@ public final class ScriptHUD {
         drawRow(g2, x, y, "Action:",  Telemetry.getAction()); y += LINE_H;
 
         // Stats
-        drawRow(g2, x, y, "Kills:",   String.valueOf(Telemetry.getKillCount()));   y += LINE_H;
-        drawRow(g2, x, y, "GP Loot:", formatGp(Telemetry.getGpLooted()));          y += LINE_H;
-        drawRow(g2, x, y, "Tasks:",   String.valueOf(Telemetry.getSessionTasks())); y += LINE_H;
-        drawRow(g2, x, y, "GE Buys:", String.valueOf(Telemetry.getGERestocks()));   y += LINE_H;
-        drawRow(g2, x, y, "Mule Tx:", String.valueOf(Telemetry.getMuleTransfers())); y += LINE_H;
+        drawRow(g2, x, y, "Kills:",    Telemetry.getKillCount() + " (" + Telemetry.getKillsPerHour() + "/hr)"); y += LINE_H;
+        drawRow(g2, x, y, "GP Loot:",  formatGp(Telemetry.getGpLooted()) + " (" + formatGp(Telemetry.getGpPerHour()) + "/hr)"); y += LINE_H;
+        drawRow(g2, x, y, "Tasks:",    String.valueOf(Telemetry.getSessionTasks())); y += LINE_H;
+        drawRow(g2, x, y, "GE Buys:",  String.valueOf(Telemetry.getGERestocks()));   y += LINE_H;
+        drawRow(g2, x, y, "Mule Tx:",  String.valueOf(Telemetry.getMuleTransfers())); y += LINE_H;
 
         // Success rate
         drawRow(g2, x, y, "Success:", Telemetry.getSuccessRate() + "% ("
@@ -93,7 +91,7 @@ public final class ScriptHUD {
         drawRow(g2, x, y, "PathFail:", String.valueOf(Telemetry.getPathFailures())); y += LINE_H;
 
         // Crowd
-        drawRow(g2, x, y, "Crowd:",   crowd.getCurrentCrowd() + " players nearby"); y += LINE_H + 4;
+        drawRow(g2, x, y, "Crowd:",   crowd.getCurrentCrowd() + " nearby"); y += LINE_H + 4;
 
         // HP bar
         int hp    = Skills.getBoostedLevel(Skill.HITPOINTS);

@@ -29,6 +29,11 @@ public final class CombatNode implements Node {
 
     private final MonsterDef monster;
 
+    /** NPC we most recently issued an Attack command to. */
+    private NPC  currentTarget  = null;
+    /** True if local player was in combat on the previous tick. */
+    private boolean wasInCombat = false;
+
     public CombatNode(MonsterDef monster) {
         this.monster = monster;
     }
@@ -40,8 +45,18 @@ public final class CombatNode implements Node {
         Player local = Players.localPlayer();
         if (local == null) return Status.FAILURE;
 
-        // Already in combat with a valid NPC
-        if (local.isInCombat()) {
+        boolean inCombat = local.isInCombat();
+
+        // Kill detection: we were fighting, now we're not, and the NPC vanished
+        if (wasInCombat && !inCombat && currentTarget != null && !currentTarget.exists()) {
+            Telemetry.addKill();
+            Logger.log("[CombatNode] Kill registered. Total: " + Telemetry.getKillCount());
+            currentTarget = null;
+        }
+        wasInCombat = inCombat;
+
+        // Already in combat — just wait
+        if (inCombat) {
             Telemetry.setState("COMBAT");
             Telemetry.setTarget(monster.name);
             return Status.RUNNING;
@@ -71,6 +86,7 @@ public final class CombatNode implements Node {
 
         boolean ok = SleepUtil.retryInteract(target, "Attack", 3);
         if (ok) {
+            currentTarget = target;
             Sleep.sleepUntil(local::isInCombat, 4_000);
         }
         return ok ? Status.RUNNING : Status.FAILURE;

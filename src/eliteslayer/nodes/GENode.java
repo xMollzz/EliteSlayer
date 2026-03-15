@@ -6,7 +6,6 @@ import eliteslayer.util.PriceCache;
 import eliteslayer.util.Telemetry;
 import org.dreambot.api.methods.bank.Bank;
 import org.dreambot.api.methods.grandexchange.GrandExchange;
-import org.dreambot.api.methods.grandexchange.GrandExchangeItem;
 import org.dreambot.api.utilities.Logger;
 import org.dreambot.api.utilities.Sleep;
 

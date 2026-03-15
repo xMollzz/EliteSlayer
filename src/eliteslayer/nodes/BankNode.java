@@ -103,18 +103,13 @@ public final class BankNode implements Node {
 
     private boolean needsBank() {
         if (Inventory.isFull()) return true;
-        // Check if we have less than 2 food items
-        int foodCount = 0;
-        for (String keep : KEEP_ITEMS) {
-            if (keep.toLowerCase().contains("shark") ||
-                keep.toLowerCase().contains("lobster") ||
-                keep.toLowerCase().contains("anglerfish") ||
-                keep.toLowerCase().contains("manta")) {
-                foodCount += Inventory.count(item ->
-                    item != null && item.getName() != null &&
-                    item.getName().toLowerCase().contains(keep.toLowerCase()));
-            }
-        }
+        // Sum food using name-based counts (DreamBot 3 has Inventory.count(String))
+        int foodCount = Inventory.count("Shark")
+                + Inventory.count("Anglerfish")
+                + Inventory.count("Manta ray")
+                + Inventory.count("Lobster")
+                + Inventory.count("Swordfish")
+                + Inventory.count("Karambwan");
         return foodCount < 2;
     }
 

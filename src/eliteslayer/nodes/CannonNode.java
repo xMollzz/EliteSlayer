@@ -22,13 +22,16 @@ import org.dreambot.api.wrappers.items.Item;
  */
 public final class CannonNode implements Node {
 
-    private static final int  CANNON_BASE_ID = 6;    // cannon base item ID (to detect if we have cannon)
-    private static final int  CANNONBALL_ID  = 2;    // cannonballs item ID
-    private static final String CANNON_NAME  = "Dwarf multicannon";   // placed object name
+    private static final int  CANNON_BASE_ID = 6;    // Dwarf cannon base (OSRS item ID: 6 - confirmed)
+    private static final int  CANNONBALL_ID  = 2;    // Cannonball (OSRS item ID: 2 - confirmed)
+    private static final String CANNON_NAME  = "Dwarf multicannon";   // placed cannon game-object name
 
     private final MonsterDef monster;
     private final boolean    enabled;
-    private boolean          placed = false;
+    private boolean          placed         = false;
+    private long             lastReloadTime = 0L;
+    /** Only reload once every 20 s to avoid spam-clicking the cannon. */
+    private static final long RELOAD_COOLDOWN_MS = 20_000L;
 
     public CannonNode(boolean enabled, MonsterDef monster) {
         this.enabled = enabled;
@@ -98,12 +101,19 @@ public final class CannonNode implements Node {
         GameObject cannon = GameObjects.closest(o -> o != null && CANNON_NAME.equals(o.getName()));
         if (cannon == null) { placed = false; return Status.FAILURE; }
 
+        // Enforce reload cooldown to avoid spam-clicking
+        long now = System.currentTimeMillis();
+        if (now - lastReloadTime < RELOAD_COOLDOWN_MS) return Status.FAILURE;
+
         // Reload when we have cannonballs in inventory
         if (Inventory.contains(CANNONBALL_ID)) {
             Telemetry.setState("RELOAD_CANNON");
             Telemetry.setAction("Reloading cannon");
             boolean ok = SleepUtil.retryInteract(cannon, "Fire", 3);
-            if (ok) Sleep.sleep(400, 800);
+            if (ok) {
+                lastReloadTime = now;
+                Sleep.sleep(400, 800);
+            }
             return ok ? Status.SUCCESS : Status.FAILURE;
         }
         return Status.FAILURE;

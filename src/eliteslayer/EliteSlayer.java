@@ -9,6 +9,8 @@ import eliteslayer.systems.*;
 import eliteslayer.ui.ConfigGUI;
 import eliteslayer.ui.ScriptHUD;
 import eliteslayer.util.*;
+import org.dreambot.api.methods.skills.Skill;
+import org.dreambot.api.methods.skills.Skills;
 import org.dreambot.api.script.AbstractScript;
 import org.dreambot.api.script.Category;
 import org.dreambot.api.script.ScriptManifest;
@@ -69,6 +71,14 @@ public final class EliteSlayer extends AbstractScript {
         state   = new FileStateStore(new File(getDirectory(), playerName + "_state.cfg"));
         discord = new DiscordWebhook(gui.discordWebhook);
 
+        // Initialise telemetry — reset counters then restore crash-resume values
+        Telemetry.reset();
+        Telemetry.setKillCount(state.getLong("kills", 0L));
+        Telemetry.setGpLooted(state.getLong("gp", 0L));
+        Telemetry.setSessionTasks(state.getLong("tasks", 0L));
+        // Capture baseline XP for XP/hr calculation
+        Telemetry.setStartXp(Skills.getTotalXP());
+
         entropy = new EntropyMonitor();
         crowd   = new CrowdTracker();
         antiBan = new AntiBanEngine(entropy);
@@ -95,7 +105,6 @@ public final class EliteSlayer extends AbstractScript {
         ));
 
         // Restore crash-resume counters
-        Telemetry.reset();
         discord.send("EliteSlayer started — targeting " + gui.selectedMonster);
         Logger.log("[EliteSlayer] Started on " + gui.selectedMonster);
     }

@@ -18,6 +18,15 @@ public final class EatNode implements Node {
     /** HP percentage below which we eat. Configurable via Config.eatThreshold. */
     private final int eatThresholdPercent;
 
+    /** Static set of food name fragments — built once, not on every tick. */
+    private static final java.util.Set<String> FOOD_NAMES;
+    static {
+        FOOD_NAMES = new java.util.HashSet<>(java.util.Arrays.asList(
+            "shark", "anglerfish", "manta ray", "lobster", "swordfish", "tuna", "bass",
+            "cake", "bread", "potato", "stew", "pie", "karambwan", "food"
+        ));
+    }
+
     public EatNode(int eatThresholdPercent) {
         this.eatThresholdPercent = eatThresholdPercent;
     }
@@ -36,12 +45,7 @@ public final class EatNode implements Node {
 
         Telemetry.setState("EAT");
 
-        // Look for any food in inventory using a set of known food name fragments
-        final java.util.Set<String> FOOD_NAMES = new java.util.HashSet<>(java.util.Arrays.asList(
-            "shark", "anglerfish", "manta ray", "lobster", "swordfish", "tuna", "bass",
-            "cake", "bread", "potato", "stew", "pie", "karambwan", "food"
-        ));
-
+        // Look for any food in inventory using the static food name fragment set
         Item food = Inventory.get(item -> {
             if (item == null || item.getName() == null) return false;
             String lower = item.getName().toLowerCase();

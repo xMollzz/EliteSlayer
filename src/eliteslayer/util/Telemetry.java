@@ -21,6 +21,10 @@ public final class Telemetry {
     private static final AtomicLong    sessionTasks  = new AtomicLong(0);
     private static final AtomicLong    geRestocks    = new AtomicLong(0);
     private static final AtomicLong    muleTransfers = new AtomicLong(0);
+    /** Starting XP for this session (set once in onStart). */
+    private static final AtomicLong    startXp       = new AtomicLong(0);
+    /** Script start time for GP/hr and kill-rate calculation. */
+    private static final AtomicLong    startTime     = new AtomicLong(System.currentTimeMillis());
 
     private Telemetry() {}
 
@@ -48,6 +52,7 @@ public final class Telemetry {
     public static long    getSessionTasks()  { return sessionTasks.get(); }
     public static long    getGERestocks()    { return geRestocks.get(); }
     public static long    getMuleTransfers() { return muleTransfers.get(); }
+    public static long    getStartTime()     { return startTime.get(); }
 
     /** Success-rate percentage (0-100). */
     public static int getSuccessRate() {
@@ -55,6 +60,29 @@ public final class Telemetry {
         if (total == 0) return 100;
         return (int) (successCount.get() * 100L / total);
     }
+
+    /** GP earned per hour based on elapsed session time. */
+    public static long getGpPerHour() {
+        long elapsed = System.currentTimeMillis() - startTime.get();
+        if (elapsed < 5_000L) return 0L;
+        return gpLooted.get() * 3_600_000L / elapsed;
+    }
+
+    /** Kills per hour based on elapsed session time. */
+    public static long getKillsPerHour() {
+        long elapsed = System.currentTimeMillis() - startTime.get();
+        if (elapsed < 5_000L) return 0L;
+        return killCount.get() * 3_600_000L / elapsed;
+    }
+
+    // ------------------------------------------------------------------ //
+    //  Setters for crash-resume loading                                    //
+    // ------------------------------------------------------------------ //
+
+    public static void setKillCount(long v)   { killCount.set(v); }
+    public static void setGpLooted(long v)    { gpLooted.set(v); }
+    public static void setSessionTasks(long v){ sessionTasks.set(v); }
+    public static void setStartXp(long xp)    { startXp.set(xp); }
 
     public static void reset() {
         currentState.set("IDLE");
@@ -68,5 +96,7 @@ public final class Telemetry {
         sessionTasks.set(0);
         geRestocks.set(0);
         muleTransfers.set(0);
+        startXp.set(0);
+        startTime.set(System.currentTimeMillis());
     }
 }
