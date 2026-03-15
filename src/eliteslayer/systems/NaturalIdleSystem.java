@@ -88,7 +88,7 @@ public final class NaturalIdleSystem {
     // ------------------------------------------------------------------ //
 
     private void shortIdle() {
-        int delay = ThreadLocalRandom.current().nextInt(2_000, 7_001);
+        int delay = ThreadLocalRandom.current().nextInt(2_000, 7_000);
         Logger.log("[NaturalIdle] Short idle for " + delay + " ms");
         Sleep.sleep(delay);
     }

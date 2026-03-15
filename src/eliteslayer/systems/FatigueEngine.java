@@ -17,6 +17,8 @@ import java.util.concurrent.ThreadLocalRandom;
  */
 public final class FatigueEngine {
 
+    private static final double MILLIS_PER_HOUR = 3_600_000.0;
+
     private final long sessionStart;
 
     public FatigueEngine() {
@@ -29,7 +31,7 @@ public final class FatigueEngine {
      */
     public double getFatigue() {
         long runtime = System.currentTimeMillis() - sessionStart;
-        return runtime / 3_600_000.0;
+        return runtime / MILLIS_PER_HOUR;
     }
 
     /**

@@ -89,16 +89,27 @@ public final class SocialAwareness {
     }
 
     /**
-     * Attempts to hop to a random members' world.
+     * Attempts to hop to a random valid members' world, filtering out
+     * PVP, high-risk, and skill-total requirement worlds.
      * @return true if the hop was initiated
      */
     public boolean hopWorld() {
         List<World> worlds = Worlds.all();
         if (worlds == null || worlds.isEmpty()) return false;
 
-        World target = worlds.get(ThreadLocalRandom.current().nextInt(worlds.size()));
-        if (target == null) return false;
+        // Filter to regular members worlds only
+        java.util.ArrayList<World> valid = new java.util.ArrayList<>();
+        for (World w : worlds) {
+            if (w == null) continue;
+            if (!w.isMembers()) continue;
+            if (w.isPVP()) continue;
+            if (w.isHighRisk()) continue;
+            if (w.getMinimumLevel() > 0) continue;
+            valid.add(w);
+        }
+        if (valid.isEmpty()) return false;
 
+        World target = valid.get(ThreadLocalRandom.current().nextInt(valid.size()));
         Logger.log("[SocialAwareness] World hopping to " + target.getWorld());
         boolean ok = Worlds.hopWorld(target);
         if (ok) {
