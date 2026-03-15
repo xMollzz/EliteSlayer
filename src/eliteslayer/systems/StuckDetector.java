@@ -138,15 +138,21 @@ public final class StuckDetector {
 
         double totalDelta = 0.0;
         for (int i = 1; i < historyCount; i++) {
-            int prevIdx = (historyIndex - historyCount + i - 1 + HISTORY_SIZE * 2) % HISTORY_SIZE;
-            int currIdx = (historyIndex - historyCount + i     + HISTORY_SIZE * 2) % HISTORY_SIZE;
-            Tile prev = positionHistory[prevIdx];
-            Tile curr = positionHistory[currIdx];
+            Tile prev = getHistoryEntry(i - 1);
+            Tile curr = getHistoryEntry(i);
             if (prev != null && curr != null) {
                 totalDelta += prev.distance(curr);
             }
         }
         return totalDelta;
+    }
+
+    /**
+     * Returns the i-th oldest entry in the ring buffer (0 = oldest recorded).
+     */
+    private Tile getHistoryEntry(int offset) {
+        int idx = (historyIndex - historyCount + offset + HISTORY_SIZE) % HISTORY_SIZE;
+        return positionHistory[idx];
     }
 
     // ------------------------------------------------------------------ //
