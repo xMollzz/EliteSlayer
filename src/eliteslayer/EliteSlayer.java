@@ -131,7 +131,8 @@ public final class EliteSlayer extends AbstractScript {
             antiBanTick = now;
         }
 
-        // Script profiling
+        // Script profiling — track per-tick duration
+        long tickStart = System.nanoTime();
         ctx.profiler.start("tree.tick");
         try {
             tree.tick();
@@ -139,11 +140,10 @@ public final class EliteSlayer extends AbstractScript {
             ctx.logger.error("Uncaught exception in tree: " + e.getMessage());
         }
         ctx.profiler.stop("tree.tick");
+        long tickNs = System.nanoTime() - tickStart;
 
-        Profiler.Stats tickStats = ctx.profiler.getStats("tree.tick");
-        if (tickStats != null && tickStats.getMaxMs() > 5.0) {
-            ctx.logger.warn("Slow tick: " + String.format("%.1f", tickStats.getMaxMs()) + " ms (avg " +
-                String.format("%.1f", tickStats.getAverageMs()) + " ms)");
+        if (tickNs > 5_000_000L) {  // > 5 ms
+            ctx.logger.warn("Slow tick: " + (tickNs / 1_000_000L) + " ms");
         }
 
         return 600;

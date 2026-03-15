@@ -271,8 +271,8 @@ public final class ConfigGUI extends JFrame {
 
     /**
      * Restores GUI configuration values from the given state store.
-     * Called in {@code onStart()} before building the behavior tree so that
-     * the previous session's settings are preserved.
+     * Called after the GUI is dismissed (in {@code onStart()}) so that
+     * the previous session's settings override any GUI changes.
      */
     public void loadFrom(FileStateStore store) {
         selectedMonster = store.get("cfg.monster", selectedMonster);

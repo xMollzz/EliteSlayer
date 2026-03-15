@@ -50,7 +50,8 @@ public final class EventBus {
             try {
                 l.onEvent(topic, payload);
             } catch (Exception e) {
-                // Swallow listener exceptions to avoid disrupting the publisher
+                // Log but don't propagate — protect the publisher from listener errors
+                System.err.println("[EventBus] Listener error on topic '" + topic + "': " + e.getMessage());
             }
         }
     }
