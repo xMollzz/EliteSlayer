@@ -2,6 +2,8 @@ package eliteslayer.nodes;
 
 import eliteslayer.behavior.Node;
 import eliteslayer.behavior.Status;
+import eliteslayer.systems.FatigueEngine;
+import eliteslayer.systems.PlayerProfile;
 import eliteslayer.util.PriceCache;
 import eliteslayer.util.SleepUtil;
 import eliteslayer.util.Telemetry;
@@ -22,8 +24,16 @@ import java.util.List;
  */
 public final class LootNode implements Node {
 
-    private static final int MIN_VALUE  = 1_000;   // minimum gp value to loot
-    private static final int LOOT_RANGE = 6;        // tiles
+    private static final int DEFAULT_MIN_VALUE = 1_000;   // minimum gp value to loot
+    private static final int LOOT_RANGE = 6;               // tiles
+
+    private final int minValue;
+    private final FatigueEngine fatigue;
+
+    public LootNode(PlayerProfile profile, FatigueEngine fatigue) {
+        this.minValue = profile.lootValueThreshold;
+        this.fatigue  = fatigue;
+    }
 
     /** Item IDs that should always be looted regardless of value. */
     private static final int[] ALWAYS_LOOT = {
@@ -83,7 +93,9 @@ public final class LootNode implements Node {
         boolean ok = SleepUtil.retryInteract(best, "Take", 3);
         if (ok) {
             Telemetry.addGp(bestVal);
-            org.dreambot.api.utilities.Sleep.sleep(400, 800);
+            // Fatigue-adjusted post-loot delay
+            int delay = fatigue.adjustedDelay(400, 800, 40);
+            org.dreambot.api.utilities.Sleep.sleep(delay);
         }
         return ok ? Status.SUCCESS : Status.FAILURE;
     }
@@ -111,6 +123,6 @@ public final class LootNode implements Node {
 
         // Price-cached value check
         int price = PriceCache.getPrice(id) * gi.getAmount();
-        return price >= MIN_VALUE ? price : -1;
+        return price >= minValue ? price : -1;
     }
 }

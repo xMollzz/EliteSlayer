@@ -3,6 +3,9 @@ package eliteslayer.nodes;
 import eliteslayer.behavior.Node;
 import eliteslayer.behavior.Status;
 import eliteslayer.game.MonsterDef;
+import eliteslayer.systems.CombatStrategy;
+import eliteslayer.systems.FatigueEngine;
+import eliteslayer.systems.PlayerProfile;
 import eliteslayer.util.Navigator;
 import eliteslayer.util.SleepUtil;
 import eliteslayer.util.Telemetry;
@@ -27,15 +30,22 @@ import java.util.List;
  */
 public final class CombatNode implements Node {
 
-    private final MonsterDef monster;
+    private final MonsterDef     monster;
+    private final CombatStrategy strategy;
+    private final FatigueEngine  fatigue;
+    private final PlayerProfile  profile;
 
     /** NPC we most recently issued an Attack command to. */
     private NPC  currentTarget  = null;
     /** True if local player was in combat on the previous tick. */
     private boolean wasInCombat = false;
 
-    public CombatNode(MonsterDef monster) {
-        this.monster = monster;
+    public CombatNode(MonsterDef monster, CombatStrategy strategy,
+                      FatigueEngine fatigue, PlayerProfile profile) {
+        this.monster  = monster;
+        this.strategy = strategy;
+        this.fatigue  = fatigue;
+        this.profile  = profile;
     }
 
     @Override
@@ -52,6 +62,13 @@ public final class CombatNode implements Node {
             Telemetry.addKill();
             Logger.log("[CombatNode] Kill registered. Total: " + Telemetry.getKillCount());
             currentTarget = null;
+
+            // Strategy-based post-kill delay (fatigue-scaled)
+            int postDelay = fatigue.adjustedDelay(
+                strategy.postKillDelay,
+                strategy.postKillDelay + 200,
+                40);
+            Sleep.sleep((int) (postDelay * profile.reactionMultiplier));
         }
         wasInCombat = inCombat;
 
@@ -82,7 +99,16 @@ public final class CombatNode implements Node {
         Telemetry.setState("ATTACKING");
         Telemetry.setTarget(target.getName() != null ? target.getName() : monster.name);
         Telemetry.setAction("Attacking " + Telemetry.getTarget());
-        Logger.log("[CombatNode] Attacking " + Telemetry.getTarget());
+        Logger.log("[CombatNode] Attacking " + Telemetry.getTarget()
+            + " [" + strategy.name() + "]");
+
+        // Fatigue-based misclick simulation — occasionally click nearby instead
+        if (fatigue.shouldMisclick(0.01, 0.015)) {
+            org.dreambot.api.input.Mouse.move(
+                java.util.concurrent.ThreadLocalRandom.current().nextInt(50, 750),
+                java.util.concurrent.ThreadLocalRandom.current().nextInt(50, 500));
+            Sleep.sleep(fatigue.adjustedDelay(200, 500, 30));
+        }
 
         boolean ok = SleepUtil.retryInteract(target, "Attack", 3);
         if (ok) {
@@ -130,7 +156,7 @@ public final class CombatNode implements Node {
             if (npc == null) continue;
             double dist  = npc.getTile().distance(localTile);
             double score = 1000.0
-                - dist * 15.0
+                - dist * (strategy.preferClosest ? 30.0 : 15.0)
                 - (npc.isInCombat()    ? 300.0 : 0.0)
                 - (npc.getHealthPercent() * 2.0)
                 + (npc.isInteractable() ? 50.0 : 0.0);

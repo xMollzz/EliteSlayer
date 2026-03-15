@@ -30,13 +30,20 @@ import java.util.Arrays;
 public final class EliteSlayer extends AbstractScript {
 
     // Systems
-    private EntropyMonitor  entropy;
-    private CrowdTracker    crowd;
-    private AntiBanEngine   antiBan;
-    private BreakScheduler  breaks;
-    private StuckDetector   stuck;
-    private DiscordWebhook  discord;
-    private FileStateStore  state;
+    private EntropyMonitor    entropy;
+    private CrowdTracker      crowd;
+    private AntiBanEngine     antiBan;
+    private BreakScheduler    breaks;
+    private StuckDetector     stuck;
+    private DiscordWebhook    discord;
+    private FileStateStore    state;
+    private FatigueEngine     fatigue;
+    private NaturalIdleSystem naturalIdle;
+    private SocialAwareness   social;
+
+    // Per-session behaviour profiles (assigned once at start)
+    private PlayerProfile   profile;
+    private CombatStrategy  combatStrategy;
 
     // UI
     private ConfigGUI gui;
@@ -84,7 +91,12 @@ public final class EliteSlayer extends AbstractScript {
         antiBan = new AntiBanEngine(entropy);
         breaks  = new BreakScheduler();
         stuck   = new StuckDetector(this::stop);
-        hud     = new ScriptHUD(entropy, crowd);
+        fatigue     = new FatigueEngine();
+        naturalIdle = new NaturalIdleSystem();
+        social      = new SocialAwareness();
+        profile        = PlayerProfile.randomForSession();
+        combatStrategy = CombatStrategy.randomForSession();
+        hud     = new ScriptHUD(entropy, crowd, fatigue, profile, combatStrategy);
 
         MonsterDef monster = MonsterDatabase.get(gui.selectedMonster);
         int[]      mulePos = parseMulePos(gui);
@@ -100,18 +112,34 @@ public final class EliteSlayer extends AbstractScript {
             new BankNode(monster, gui.foodAmount),
             new GENode(gui.useGE),
             new CannonNode(gui.useCannon, monster),
-            new LootNode(),
-            new CombatNode(monster)
+            new LootNode(profile, fatigue),
+            new CombatNode(monster, combatStrategy, fatigue, profile)
         ));
 
         // Restore crash-resume counters
-        discord.send("EliteSlayer started — targeting " + gui.selectedMonster);
-        Logger.log("[EliteSlayer] Started on " + gui.selectedMonster);
+        discord.send("EliteSlayer started — targeting " + gui.selectedMonster
+            + " | Profile: " + profile.name() + " | Strategy: " + combatStrategy.name());
+        Logger.log("[EliteSlayer] Started on " + gui.selectedMonster
+            + " | Profile: " + profile.name() + " | Strategy: " + combatStrategy.name());
     }
 
     @Override
     public int onLoop() {
         stuck.check();
+
+        // Social awareness — react to nearby players
+        if (social.react()) {
+            return fatigue.adjustedDelay(400, 800, 80);
+        }
+        if (social.shouldWorldHop()) {
+            social.hopWorld();
+            return fatigue.adjustedDelay(600, 1200, 80);
+        }
+
+        // Natural idle simulation — probability-based fidgets
+        if (naturalIdle.maybeFidget(profile.idleChanceMultiplier, fatigue.getCapped(5.0))) {
+            return fatigue.adjustedDelay(400, 800, 80);
+        }
 
         // Anti-ban: run every 4–8 seconds (randomised)
         long now = System.currentTimeMillis();
@@ -133,7 +161,8 @@ public final class EliteSlayer extends AbstractScript {
             Logger.warn("[EliteSlayer] Slow tick: " + (tickNs / 1_000_000L) + " ms");
         }
 
-        return 600;
+        // Fatigue-adjusted loop delay
+        return fatigue.adjustedDelay(500, 700, 60);
     }
 
     @Override
