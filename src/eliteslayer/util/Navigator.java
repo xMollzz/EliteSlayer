@@ -49,7 +49,9 @@ public final class Navigator {
     /** Maximum number of cached path results. */
     private static final int CACHE_MAX_SIZE = 64;
     /** Time-to-live for cache entries (ms). */
-    private static final long CACHE_TTL_MS  = 10_000L;
+    private static final long CACHE_TTL_MS      = 10_000L;
+    /** Shorter TTL for failed paths so retries happen sooner. */
+    private static final long CACHE_FAIL_TTL_MS = 3_000L;
 
     private static final class CacheEntry {
         final boolean success;
@@ -59,7 +61,10 @@ public final class Navigator {
             this.timestamp = System.currentTimeMillis();
         }
         boolean isExpired() {
-            return System.currentTimeMillis() - timestamp > CACHE_TTL_MS;
+            // Failed paths expire faster to allow periodic retries when
+            // conditions change (e.g. obstacles cleared, doors opened).
+            long ttl = success ? CACHE_TTL_MS : CACHE_FAIL_TTL_MS;
+            return System.currentTimeMillis() - timestamp > ttl;
         }
     }
 
