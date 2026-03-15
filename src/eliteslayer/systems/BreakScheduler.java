@@ -16,14 +16,16 @@ public final class BreakScheduler {
     private static final long BASE_BREAK_LEN_MIN  = 90_000L;        // 1.5 min minimum
 
     private final long startTime;
+    private final SessionVariance sessionVariance;
     private long nextBreakAt;
     private long breakEndAt;
     private boolean onBreak;
 
-    public BreakScheduler() {
-        this.startTime   = System.currentTimeMillis();
-        this.onBreak     = false;
-        this.breakEndAt  = 0L;
+    public BreakScheduler(SessionVariance sessionVariance) {
+        this.startTime       = System.currentTimeMillis();
+        this.sessionVariance = sessionVariance;
+        this.onBreak         = false;
+        this.breakEndAt      = 0L;
         scheduleNext(0L);
     }
 
@@ -69,7 +71,8 @@ public final class BreakScheduler {
     private void scheduleNext(long now) {
         double runtimeMinutes = (now - startTime) / 60_000.0;
         double fatigue         = Math.min(0.3, (runtimeMinutes / 120.0) * 0.3);
-        double adjustedMean    = BASE_BREAK_MEAN_MS * (1.0 - fatigue);
+        double adjustedMean    = BASE_BREAK_MEAN_MS * (1.0 - fatigue)
+                               * sessionVariance.getBreakModifier();
 
         // Exponential inter-arrival: -mean * ln(U) where U ~ Uniform(0,1)
         double u       = ThreadLocalRandom.current().nextDouble();
@@ -80,7 +83,8 @@ public final class BreakScheduler {
     private long sampleBreakLength(long now) {
         double runtimeMinutes = (now - startTime) / 60_000.0;
         double fatigue         = Math.min(0.3, (runtimeMinutes / 120.0) * 0.3);
-        double mean            = BASE_BREAK_LEN_MEAN * (1.0 + fatigue);
+        double mean            = BASE_BREAK_LEN_MEAN * (1.0 + fatigue)
+                               / sessionVariance.getBreakModifier();
 
         // Gaussian sample, clamped to a minimum
         double sample = mean + ThreadLocalRandom.current().nextGaussian() * (mean * 0.3);

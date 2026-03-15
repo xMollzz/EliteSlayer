@@ -96,11 +96,17 @@ public final class AntiBanEngine {
 
     private final long[]          lastTriggered = new long[ACTION_COUNT];
     private final EntropyMonitor  entropy;
+    private final int[]           effectiveWeights;
+    private final int             effectiveTotalWeight;
     /** Cached AWT Robot for keyboard simulation — null if AWTException prevented creation. */
     private Robot awtRobot;
 
-    public AntiBanEngine(EntropyMonitor entropy) {
+    public AntiBanEngine(EntropyMonitor entropy, BehaviorProfile profile) {
         this.entropy = entropy;
+        this.effectiveWeights = profile.getModifiedWeights(WEIGHTS);
+        int sum = 0;
+        for (int w : effectiveWeights) sum += w;
+        this.effectiveTotalWeight = sum;
         try { this.awtRobot = new Robot(); } catch (AWTException ignored) { this.awtRobot = null; }
     }
 
@@ -135,10 +141,10 @@ public final class AntiBanEngine {
 
     /** Weighted random selection — single-pass, no streams (optimisation 11). */
     private int weightedSelect() {
-        int roll = ThreadLocalRandom.current().nextInt(TOTAL_WEIGHT);
+        int roll = ThreadLocalRandom.current().nextInt(effectiveTotalWeight);
         int cumulative = 0;
         for (int i = 0; i < ACTION_COUNT; i++) {
-            cumulative += WEIGHTS[i];
+            cumulative += effectiveWeights[i];
             if (roll < cumulative) return i;
         }
         return ACTION_COUNT - 1;

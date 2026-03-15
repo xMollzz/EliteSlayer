@@ -6,6 +6,7 @@ import eliteslayer.game.MonsterDef;
 import eliteslayer.util.Navigator;
 import eliteslayer.util.SleepUtil;
 import eliteslayer.util.Telemetry;
+import eliteslayer.systems.HumanErrorSimulator;
 import org.dreambot.api.methods.interactive.NPCs;
 import org.dreambot.api.methods.interactive.Players;
 import org.dreambot.api.methods.map.Tile;
@@ -28,14 +29,16 @@ import java.util.List;
 public final class CombatNode implements Node {
 
     private final MonsterDef monster;
+    private final HumanErrorSimulator humanError;
 
     /** NPC we most recently issued an Attack command to. */
     private NPC  currentTarget  = null;
     /** True if local player was in combat on the previous tick. */
     private boolean wasInCombat = false;
 
-    public CombatNode(MonsterDef monster) {
-        this.monster = monster;
+    public CombatNode(MonsterDef monster, HumanErrorSimulator humanError) {
+        this.monster    = monster;
+        this.humanError = humanError;
     }
 
     @Override
@@ -77,6 +80,11 @@ public final class CombatNode implements Node {
             Telemetry.setAction("No valid target");
             Sleep.sleep(600);
             return Status.RUNNING;
+        }
+
+        // Human inefficiency: hesitate briefly before attacking
+        if (humanError.shouldHesitate()) {
+            Sleep.sleep(humanError.getHesitationDelay());
         }
 
         Telemetry.setState("ATTACKING");
@@ -122,8 +130,10 @@ public final class CombatNode implements Node {
         if (candidates == null || candidates.isEmpty()) return null;
 
         // Single-pass maximum — no streams (optimisation 11)
-        NPC   best      = null;
-        double bestScore = Double.NEGATIVE_INFINITY;
+        NPC   best       = null;
+        NPC   secondBest = null;
+        double bestScore       = Double.NEGATIVE_INFINITY;
+        double secondBestScore = Double.NEGATIVE_INFINITY;
         Tile   localTile = local.getTile();
 
         for (NPC npc : candidates) {
@@ -135,9 +145,19 @@ public final class CombatNode implements Node {
                 - (npc.getHealthPercent() * 2.0)
                 + (npc.isInteractable() ? 50.0 : 0.0);
             if (score > bestScore) {
-                bestScore = score;
-                best      = npc;
+                secondBestScore = bestScore;
+                secondBest      = best;
+                bestScore       = score;
+                best            = npc;
+            } else if (score > secondBestScore) {
+                secondBestScore = score;
+                secondBest      = npc;
             }
+        }
+
+        // Human inefficiency: occasionally pick the second-best target
+        if (secondBest != null && humanError.shouldMakeSuboptimalChoice()) {
+            return secondBest;
         }
         return best;
     }

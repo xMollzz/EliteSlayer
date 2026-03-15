@@ -30,13 +30,18 @@ import java.util.Arrays;
 public final class EliteSlayer extends AbstractScript {
 
     // Systems
-    private EntropyMonitor  entropy;
-    private CrowdTracker    crowd;
-    private AntiBanEngine   antiBan;
-    private BreakScheduler  breaks;
-    private StuckDetector   stuck;
-    private DiscordWebhook  discord;
-    private FileStateStore  state;
+    private EntropyMonitor      entropy;
+    private CrowdTracker        crowd;
+    private AntiBanEngine       antiBan;
+    private BreakScheduler      breaks;
+    private StuckDetector       stuck;
+    private DiscordWebhook      discord;
+    private FileStateStore      state;
+    private BehaviorProfile     behaviorProfile;
+    private AccountIdentity     accountIdentity;
+    private SessionVariance     sessionVariance;
+    private EnvironmentAnalyzer environment;
+    private HumanErrorSimulator humanError;
 
     // UI
     private ConfigGUI gui;
@@ -79,20 +84,27 @@ public final class EliteSlayer extends AbstractScript {
         // Capture baseline XP for XP/hr calculation
         Telemetry.setStartXp(Skills.getTotalXP());
 
-        entropy = new EntropyMonitor();
-        crowd   = new CrowdTracker();
-        antiBan = new AntiBanEngine(entropy);
-        breaks  = new BreakScheduler();
-        stuck   = new StuckDetector(this::stop);
-        hud     = new ScriptHUD(entropy, crowd);
+        behaviorProfile = new BehaviorProfile(playerName);
+        accountIdentity = new AccountIdentity(state);
+        sessionVariance = new SessionVariance();
+        accountIdentity.onSessionStart();
+
+        entropy     = new EntropyMonitor();
+        crowd       = new CrowdTracker();
+        environment = new EnvironmentAnalyzer(crowd);
+        humanError  = new HumanErrorSimulator(behaviorProfile, sessionVariance);
+        antiBan     = new AntiBanEngine(entropy, behaviorProfile);
+        breaks      = new BreakScheduler(sessionVariance);
+        stuck       = new StuckDetector(this::stop);
+        hud         = new ScriptHUD(entropy, crowd, sessionVariance, environment);
 
         MonsterDef monster = MonsterDatabase.get(gui.selectedMonster);
         int[]      mulePos = parseMulePos(gui);
 
         tree = new Selector(Arrays.asList(
-            new SafetyNode(entropy, crowd),
+            new SafetyNode(entropy, crowd, environment),
             new BreakNode(breaks),
-            new EatNode(gui.eatThreshold),
+            new EatNode(gui.eatThreshold, humanError),
             new PotionNode(),
             new PrayerNode(gui.usePrayer, monster != null ? monster.protection : ""),
             new SpecialAttackNode(gui.specThreshold),
@@ -101,7 +113,7 @@ public final class EliteSlayer extends AbstractScript {
             new GENode(gui.useGE),
             new CannonNode(gui.useCannon, monster),
             new LootNode(),
-            new CombatNode(monster)
+            new CombatNode(monster, humanError)
         ));
 
         // Restore crash-resume counters
@@ -112,10 +124,12 @@ public final class EliteSlayer extends AbstractScript {
     @Override
     public int onLoop() {
         stuck.check();
+        environment.update();
 
-        // Anti-ban: run every 4–8 seconds (randomised)
+        // Anti-ban: run every 4–8 seconds (randomised, adjusted by session energy)
         long now = System.currentTimeMillis();
-        long antiBanInterval = 4_000L + java.util.concurrent.ThreadLocalRandom.current().nextLong(4_000L);
+        long antiBanInterval = sessionVariance.adjustInterval(
+            4_000 + java.util.concurrent.ThreadLocalRandom.current().nextInt(4_000));
         if (now - antiBanTick > antiBanInterval) {
             antiBan.act();
             antiBanTick = now;
@@ -142,6 +156,9 @@ public final class EliteSlayer extends AbstractScript {
             discord.send("EliteSlayer stopped — kills: " + Telemetry.getKillCount()
                 + ", gp: " + Telemetry.getGpLooted());
             discord.shutdown();
+        }
+        if (accountIdentity != null) {
+            accountIdentity.onSessionEnd();
         }
         if (state != null) {
             state.set("kills",    String.valueOf(Telemetry.getKillCount()));

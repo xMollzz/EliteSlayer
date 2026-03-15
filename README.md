@@ -10,9 +10,14 @@ Modular OSRS Slayer bot with behaviour-tree AI for [DreamBot 3](https://dreambot
 - **Crowd tracker** — pauses in crowded areas (rolling 3-minute window)
 - **Break scheduler** — Poisson-process breaks with session-fatigue scaling
 - **Stuck detector** — 3-tier watchdog (nudge → teleport → stop)
+- **Behavior profile** — per-account behavioral diversity seeded from player name (reaction times, camera habits, AFK tendencies, anti-ban weight skews)
+- **Account identity** — persistent per-account individuality that evolves across sessions (veteran factor, session history)
+- **Session variance** — per-session variability with energy drift, focus levels, and patience modifiers
+- **Environment analyzer** — time-of-day awareness, J-Mod detection, and composite risk scoring
+- **Human error simulator** — deliberate human inefficiency (hesitations, delayed reactions, suboptimal target selection)
 - **Crash-resume** — persists kills, GP, and tasks to disk
 - **Discord webhooks** — async session start/stop notifications
-- **In-game HUD** — real-time overlay with HP, entropy, kills/hr, gp/hr, and more
+- **In-game HUD** — real-time overlay with HP, entropy, energy, risk, kills/hr, gp/hr, and more
 - **16 supported monsters** — Abyssal Demons, Gargoyles, Hydras, and more
 
 ## Prerequisites
@@ -73,7 +78,9 @@ src/eliteslayer/
 ├── behavior/                 # Behaviour-tree framework (Node, Selector, Sequence, Status)
 ├── game/                     # Monster definitions & database
 ├── nodes/                    # 12 behaviour-tree leaf nodes
-├── systems/                  # Anti-ban, breaks, crowd, entropy, stuck detection
+├── systems/                  # Anti-ban, breaks, crowd, entropy, stuck detection,
+│                             #   behavior profile, account identity, session variance,
+│                             #   environment analyzer, human error simulator
 ├── ui/                       # Config GUI & in-game HUD
 └── util/                     # Discord, file state, navigator, price cache, telemetry
 ```

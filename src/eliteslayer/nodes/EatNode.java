@@ -2,6 +2,7 @@ package eliteslayer.nodes;
 
 import eliteslayer.behavior.Node;
 import eliteslayer.behavior.Status;
+import eliteslayer.systems.HumanErrorSimulator;
 import eliteslayer.util.SleepUtil;
 import eliteslayer.util.Telemetry;
 import org.dreambot.api.methods.container.impl.Inventory;
@@ -17,6 +18,7 @@ public final class EatNode implements Node {
 
     /** HP percentage below which we eat. Configurable via Config.eatThreshold. */
     private final int eatThresholdPercent;
+    private final HumanErrorSimulator humanError;
 
     /** Static set of food name fragments — built once, not on every tick. */
     private static final java.util.Set<String> FOOD_NAMES;
@@ -27,8 +29,9 @@ public final class EatNode implements Node {
         ));
     }
 
-    public EatNode(int eatThresholdPercent) {
+    public EatNode(int eatThresholdPercent, HumanErrorSimulator humanError) {
         this.eatThresholdPercent = eatThresholdPercent;
+        this.humanError = humanError;
     }
 
     @Override
@@ -44,6 +47,11 @@ public final class EatNode implements Node {
         }
 
         Telemetry.setState("EAT");
+
+        // Human inefficiency: sometimes delay reaction to low HP
+        if (humanError.shouldDelayReaction()) {
+            org.dreambot.api.utilities.Sleep.sleep(humanError.getReactionDelay());
+        }
 
         // Look for any food in inventory using the static food name fragment set
         Item food = Inventory.get(item -> {
