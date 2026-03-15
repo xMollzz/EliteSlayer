@@ -1,7 +1,6 @@
 package eliteslayer.ui;
 
 import eliteslayer.game.MonsterDatabase;
-import eliteslayer.game.MonsterDef;
 
 import javax.swing.*;
 import javax.swing.border.TitledBorder;
@@ -10,26 +9,16 @@ import java.awt.*;
 /**
  * 4-tab configuration GUI (General, Combat, Supply, Muling).
  * Swing is single-threaded — all construction happens on the EDT.
+ *
+ * <p>Configuration state lives in {@link ConfigModel} so that the game loop
+ * never needs a reference to Swing classes.</p>
  */
 public final class ConfigGUI extends JFrame {
 
     // ------------------------------------------------------------------ //
-    //  Shared config state (volatile for cross-thread visibility)         //
+    //  Model (owns the config state)                                       //
     // ------------------------------------------------------------------ //
-    public volatile String  selectedMonster   = "Abyssal Demons";
-    public volatile boolean useCannon         = false;
-    public volatile boolean usePrayer         = false;
-    public volatile boolean useGE             = false;
-    public volatile boolean useMule           = false;
-    public volatile String  muleName          = "";
-    public volatile int     eatThreshold      = 50;
-    public volatile int     specThreshold     = 50;
-    public volatile int     foodAmount        = 16;
-    public volatile int     potionAmount      = 4;
-    public volatile String  discordWebhook    = "";
-    public volatile String  muleX             = "3213";
-    public volatile String  muleY             = "3424";
-    public volatile boolean started           = false;
+    private final ConfigModel model;
 
     // ------------------------------------------------------------------ //
     //  Swing controls                                                      //
@@ -50,9 +39,33 @@ public final class ConfigGUI extends JFrame {
     private JButton           startButton;
 
     public ConfigGUI() {
+        this(new ConfigModel());
+    }
+
+    public ConfigGUI(ConfigModel model) {
         super("EliteSlayer Configuration");
+        this.model = model;
         build();
     }
+
+    /** Returns the underlying configuration model. */
+    public ConfigModel getModel() { return model; }
+
+    // Convenience accessors (delegate to model) so existing code compiles
+    public String  getSelectedMonster() { return model.selectedMonster; }
+    public boolean isUseCannon()        { return model.useCannon; }
+    public boolean isUsePrayer()        { return model.usePrayer; }
+    public boolean isUseGE()            { return model.useGE; }
+    public boolean isUseMule()          { return model.useMule; }
+    public String  getMuleName()        { return model.muleName; }
+    public int     getEatThreshold()    { return model.eatThreshold; }
+    public int     getSpecThreshold()   { return model.specThreshold; }
+    public int     getFoodAmount()      { return model.foodAmount; }
+    public int     getPotionAmount()    { return model.potionAmount; }
+    public String  getDiscordWebhook()  { return model.discordWebhook; }
+    public String  getMuleX()           { return model.muleX; }
+    public String  getMuleY()           { return model.muleY; }
+    public boolean isStarted()          { return model.started; }
 
     public void showGUI() {
         SwingUtilities.invokeLater(() -> {
@@ -100,9 +113,9 @@ public final class ConfigGUI extends JFrame {
         p.add(new JLabel("Target Monster:"), c);
         c.gridx = 1;
         monsterCombo = new JComboBox<>(MonsterDatabase.names());
-        monsterCombo.setSelectedItem(selectedMonster);
+        monsterCombo.setSelectedItem(model.selectedMonster);
         monsterCombo.addActionListener(e -> {
-            selectedMonster = (String) monsterCombo.getSelectedItem();
+            model.selectedMonster = (String) monsterCombo.getSelectedItem();
             applyMonsterDefaults();
         });
         p.add(monsterCombo, c);
@@ -110,7 +123,7 @@ public final class ConfigGUI extends JFrame {
         c.gridx = 0; c.gridy = 1;
         p.add(new JLabel("Discord Webhook URL:"), c);
         c.gridx = 1;
-        webhookField = new JTextField(discordWebhook, 24);
+        webhookField = new JTextField(model.discordWebhook, 24);
         p.add(webhookField, c);
 
         return p;
@@ -124,17 +137,17 @@ public final class ConfigGUI extends JFrame {
         c.anchor = GridBagConstraints.WEST;
 
         c.gridx = 0; c.gridy = 0;
-        cannonCheck = new JCheckBox("Use Cannon", useCannon);
+        cannonCheck = new JCheckBox("Use Cannon", model.useCannon);
         p.add(cannonCheck, c);
 
         c.gridx = 0; c.gridy = 1;
-        prayerCheck = new JCheckBox("Use Protection Prayer", usePrayer);
+        prayerCheck = new JCheckBox("Use Protection Prayer", model.usePrayer);
         p.add(prayerCheck, c);
 
         c.gridx = 0; c.gridy = 2;
         p.add(new JLabel("Eat below HP%:"), c);
         c.gridx = 1;
-        eatSlider = new JSlider(10, 90, eatThreshold);
+        eatSlider = new JSlider(10, 90, model.eatThreshold);
         eatSlider.setMajorTickSpacing(20);
         eatSlider.setPaintTicks(true);
         eatSlider.setPaintLabels(true);
@@ -143,7 +156,7 @@ public final class ConfigGUI extends JFrame {
         c.gridx = 0; c.gridy = 3;
         p.add(new JLabel("Special attack threshold%:"), c);
         c.gridx = 1;
-        specSlider = new JSlider(25, 100, specThreshold);
+        specSlider = new JSlider(25, 100, model.specThreshold);
         specSlider.setMajorTickSpacing(25);
         specSlider.setPaintTicks(true);
         specSlider.setPaintLabels(true);
@@ -160,19 +173,19 @@ public final class ConfigGUI extends JFrame {
         c.anchor = GridBagConstraints.WEST;
 
         c.gridx = 0; c.gridy = 0;
-        geCheck = new JCheckBox("Use Grand Exchange for restocking", useGE);
+        geCheck = new JCheckBox("Use Grand Exchange for restocking", model.useGE);
         p.add(geCheck, c);
 
         c.gridx = 0; c.gridy = 1;
         p.add(new JLabel("Food per trip:"), c);
         c.gridx = 1;
-        foodSpinner = new JSpinner(new SpinnerNumberModel(foodAmount, 1, 26, 1));
+        foodSpinner = new JSpinner(new SpinnerNumberModel(model.foodAmount, 1, 26, 1));
         p.add(foodSpinner, c);
 
         c.gridx = 0; c.gridy = 2;
         p.add(new JLabel("Potions per trip:"), c);
         c.gridx = 1;
-        potionSpinner = new JSpinner(new SpinnerNumberModel(potionAmount, 0, 10, 1));
+        potionSpinner = new JSpinner(new SpinnerNumberModel(model.potionAmount, 0, 10, 1));
         p.add(potionSpinner, c);
 
         return p;
@@ -186,25 +199,25 @@ public final class ConfigGUI extends JFrame {
         c.anchor = GridBagConstraints.WEST;
 
         c.gridx = 0; c.gridy = 0;
-        muleCheck = new JCheckBox("Enable Mule Trading", useMule);
+        muleCheck = new JCheckBox("Enable Mule Trading", model.useMule);
         p.add(muleCheck, c);
 
         c.gridx = 0; c.gridy = 1;
         p.add(new JLabel("Mule username:"), c);
         c.gridx = 1;
-        muleNameField = new JTextField(muleName, 16);
+        muleNameField = new JTextField(model.muleName, 16);
         p.add(muleNameField, c);
 
         c.gridx = 0; c.gridy = 2;
         p.add(new JLabel("Mule tile X:"), c);
         c.gridx = 1;
-        muleXField = new JTextField(muleX, 8);
+        muleXField = new JTextField(model.muleX, 8);
         p.add(muleXField, c);
 
         c.gridx = 0; c.gridy = 3;
         p.add(new JLabel("Mule tile Y:"), c);
         c.gridx = 1;
-        muleYField = new JTextField(muleY, 8);
+        muleYField = new JTextField(model.muleY, 8);
         p.add(muleYField, c);
 
         return p;
@@ -216,31 +229,30 @@ public final class ConfigGUI extends JFrame {
 
     private void onStart() {
         readValues();
-        started = true;
+        model.started = true;
         setVisible(false);
         dispose();
     }
 
     private void readValues() {
-        selectedMonster = (String) monsterCombo.getSelectedItem();
-        useCannon       = cannonCheck.isSelected();
-        usePrayer       = prayerCheck.isSelected();
-        useGE           = geCheck.isSelected();
-        useMule         = muleCheck.isSelected();
-        muleName        = muleNameField.getText().trim();
-        eatThreshold    = eatSlider.getValue();
-        specThreshold   = specSlider.getValue();
-        foodAmount      = (int) foodSpinner.getValue();
-        potionAmount    = (int) potionSpinner.getValue();
-        discordWebhook  = webhookField.getText().trim();
-        muleX           = muleXField.getText().trim();
-        muleY           = muleYField.getText().trim();
+        model.selectedMonster = (String) monsterCombo.getSelectedItem();
+        model.useCannon       = cannonCheck.isSelected();
+        model.usePrayer       = prayerCheck.isSelected();
+        model.useGE           = geCheck.isSelected();
+        model.useMule         = muleCheck.isSelected();
+        model.muleName        = muleNameField.getText().trim();
+        model.eatThreshold    = eatSlider.getValue();
+        model.specThreshold   = specSlider.getValue();
+        model.foodAmount      = (int) foodSpinner.getValue();
+        model.potionAmount    = (int) potionSpinner.getValue();
+        model.discordWebhook  = webhookField.getText().trim();
+        model.muleX           = muleXField.getText().trim();
+        model.muleY           = muleYField.getText().trim();
     }
 
     private void applyMonsterDefaults() {
-        MonsterDef def = MonsterDatabase.get(selectedMonster);
-        if (def == null) return;
-        if (cannonCheck != null) cannonCheck.setSelected(def.usesCannon);
-        if (prayerCheck != null) prayerCheck.setSelected(def.usesPrayer);
+        model.applyMonsterDefaults();
+        if (cannonCheck != null) cannonCheck.setSelected(model.useCannon);
+        if (prayerCheck != null) prayerCheck.setSelected(model.usePrayer);
     }
 }

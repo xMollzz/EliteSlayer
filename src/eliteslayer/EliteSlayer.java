@@ -66,7 +66,7 @@ public final class EliteSlayer extends AbstractScript {
         gui = new ConfigGUI();
         gui.showGUI();
         // Block until GUI is closed / started
-        while (!gui.started) {
+        while (!gui.isStarted()) {
             try { Thread.sleep(200); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); return; }
         }
 
@@ -78,7 +78,7 @@ public final class EliteSlayer extends AbstractScript {
             : "unknown";
 
         state   = new FileStateStore(new File(getDirectory(), playerName + "_state.cfg"));
-        discord = new DiscordWebhook(gui.discordWebhook);
+        discord = new DiscordWebhook(gui.getDiscordWebhook());
 
         // Initialise telemetry — reset counters then restore crash-resume values
         Telemetry.reset();
@@ -104,28 +104,28 @@ public final class EliteSlayer extends AbstractScript {
         stuck         = new StuckDetector(this::stop);
         hud           = new ScriptHUD(entropy, crowd, threats);
 
-        MonsterDef monster = MonsterDatabase.get(gui.selectedMonster);
+        MonsterDef monster = MonsterDatabase.get(gui.getSelectedMonster());
         int[]      mulePos = parseMulePos(gui);
 
         tree = new Selector(Arrays.asList(
             new SafetyNode(entropy, crowd, threats),
             new BreakNode(breaks),
             new WorldHopNode(crowd, threats, worldHop),
-            new EatNode(gui.eatThreshold),
+            new EatNode(gui.getEatThreshold()),
             new PotionNode(),
-            new PrayerNode(gui.usePrayer, monster != null ? monster.protection : ""),
-            new SpecialAttackNode(gui.specThreshold),
-            new MuleNode(gui.useMule, gui.muleName, mulePos),
-            new BankNode(monster, gui.foodAmount),
-            new GENode(gui.useGE),
-            new CannonNode(gui.useCannon, monster),
+            new PrayerNode(gui.isUsePrayer(), monster != null ? monster.protection : ""),
+            new SpecialAttackNode(gui.getSpecThreshold()),
+            new MuleNode(gui.isUseMule(), gui.getMuleName(), mulePos),
+            new BankNode(monster, gui.getFoodAmount()),
+            new GENode(gui.isUseGE()),
+            new CannonNode(gui.isUseCannon(), monster),
             new LootNode(),
             new CombatNode(monster, reactions, learner)
         ));
 
         // Restore crash-resume counters
-        discord.send("EliteSlayer v2.0 started — targeting " + gui.selectedMonster);
-        Logger.log("[EliteSlayer] Started on " + gui.selectedMonster
+        discord.send("EliteSlayer v2.0 started — targeting " + gui.getSelectedMonster());
+        Logger.log("[EliteSlayer] Started on " + gui.getSelectedMonster()
             + " with HumanReaction, ThreatDetector, WorldHop, DynamicMouse, TaskLearner");
     }
 
@@ -184,8 +184,8 @@ public final class EliteSlayer extends AbstractScript {
 
     private int[] parseMulePos(ConfigGUI cfg) {
         try {
-            int x = Integer.parseInt(cfg.muleX);
-            int y = Integer.parseInt(cfg.muleY);
+            int x = Integer.parseInt(cfg.getMuleX());
+            int y = Integer.parseInt(cfg.getMuleY());
             return new int[]{x, y, 0};
         } catch (NumberFormatException e) {
             return new int[]{3213, 3424, 0};
