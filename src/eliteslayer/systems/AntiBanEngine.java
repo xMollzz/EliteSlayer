@@ -12,8 +12,22 @@ import java.awt.Robot;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
- * 17-action anti-ban engine with per-action cooldowns.
- * All actions use ThreadLocalRandom (optimisation 3).
+ * 17-action anti-ban engine with per-action cooldowns, integrated with the
+ * {@link HumanReactionEngine} and {@link DynamicMouseBehavior} for more
+ * natural interactions.
+ *
+ * <h3>Improvements</h3>
+ * <ul>
+ *   <li><b>Human reaction delays</b> — a short, variable delay is applied
+ *       before every anti-ban action, replacing the old fixed-timing
+ *       approach.</li>
+ *   <li><b>Bézier mouse movement</b> — actions that move the cursor use
+ *       the {@link DynamicMouseBehavior} for natural-looking arcs.</li>
+ *   <li><b>Idle drift</b> — a periodic mouse drift is performed between
+ *       anti-ban actions to reduce cursor stillness.</li>
+ * </ul>
+ *
+ * All actions use {@link ThreadLocalRandom} (optimisation 3).
  * Hot-path target selection uses a single-pass for-loop (optimisation 11).
  */
 public final class AntiBanEngine {
@@ -94,13 +108,19 @@ public final class AntiBanEngine {
         TOTAL_WEIGHT = sum;
     }
 
-    private final long[]          lastTriggered = new long[ACTION_COUNT];
-    private final EntropyMonitor  entropy;
+    private final long[]               lastTriggered = new long[ACTION_COUNT];
+    private final EntropyMonitor       entropy;
+    private final HumanReactionEngine  reactions;
+    private final DynamicMouseBehavior mouseBehavior;
     /** Cached AWT Robot for keyboard simulation — null if AWTException prevented creation. */
     private Robot awtRobot;
 
-    public AntiBanEngine(EntropyMonitor entropy) {
-        this.entropy = entropy;
+    public AntiBanEngine(EntropyMonitor entropy,
+                         HumanReactionEngine reactions,
+                         DynamicMouseBehavior mouseBehavior) {
+        this.entropy       = entropy;
+        this.reactions     = reactions;
+        this.mouseBehavior = mouseBehavior;
         try { this.awtRobot = new Robot(); } catch (AWTException ignored) { this.awtRobot = null; }
     }
 
@@ -110,12 +130,19 @@ public final class AntiBanEngine {
      * fails.  Should be called infrequently (e.g. every 4–8 seconds).
      */
     public void act() {
+        // Idle drift between actions
+        if (mouseBehavior != null) mouseBehavior.idleDrift();
+
         int chosen = weightedSelect();
         if (chosen < 0) return;
         long now = System.currentTimeMillis();
         if (now - lastTriggered[chosen] < COOLDOWNS[chosen]) return;
         lastTriggered[chosen] = now;
         entropy.record(chosen);
+
+        // Human reaction delay before executing the action
+        if (reactions != null) reactions.reactNormal();
+
         execute(chosen);
     }
 
@@ -176,9 +203,15 @@ public final class AntiBanEngine {
     // ------------------------------------------------------------------ //
 
     private void mouseWander() {
-        org.dreambot.api.input.Mouse.move(
-            ThreadLocalRandom.current().nextInt(50, 750),
-            ThreadLocalRandom.current().nextInt(50, 500));
+        if (mouseBehavior != null) {
+            mouseBehavior.moveTo(
+                ThreadLocalRandom.current().nextInt(50, 750),
+                ThreadLocalRandom.current().nextInt(50, 500));
+        } else {
+            org.dreambot.api.input.Mouse.move(
+                ThreadLocalRandom.current().nextInt(50, 750),
+                ThreadLocalRandom.current().nextInt(50, 500));
+        }
     }
 
     private void cameraRotate() {
@@ -210,21 +243,37 @@ public final class AntiBanEngine {
     }
 
     private void hoverMinimap() {
-        org.dreambot.api.input.Mouse.move(
-            ThreadLocalRandom.current().nextInt(565, 740),
-            ThreadLocalRandom.current().nextInt(5, 145));
+        if (mouseBehavior != null) {
+            mouseBehavior.moveTo(
+                ThreadLocalRandom.current().nextInt(565, 740),
+                ThreadLocalRandom.current().nextInt(5, 145));
+        } else {
+            org.dreambot.api.input.Mouse.move(
+                ThreadLocalRandom.current().nextInt(565, 740),
+                ThreadLocalRandom.current().nextInt(5, 145));
+        }
     }
 
     private void scrollChat() {
         // Scroll with mouse wheel in the chat area
-        org.dreambot.api.input.Mouse.move(
-            ThreadLocalRandom.current().nextInt(5, 510),
-            ThreadLocalRandom.current().nextInt(450, 500));
+        if (mouseBehavior != null) {
+            mouseBehavior.moveTo(
+                ThreadLocalRandom.current().nextInt(5, 510),
+                ThreadLocalRandom.current().nextInt(450, 500));
+        } else {
+            org.dreambot.api.input.Mouse.move(
+                ThreadLocalRandom.current().nextInt(5, 510),
+                ThreadLocalRandom.current().nextInt(450, 500));
+        }
         Sleep.sleep(ThreadLocalRandom.current().nextInt(200, 600));
     }
 
     private void mouseOffScreen() {
-        org.dreambot.api.input.Mouse.move(-1, -1);
+        if (mouseBehavior != null) {
+            mouseBehavior.moveOffScreen();
+        } else {
+            org.dreambot.api.input.Mouse.move(-1, -1);
+        }
         Sleep.sleep(ThreadLocalRandom.current().nextInt(500, 3000));
     }
 
@@ -244,9 +293,15 @@ public final class AntiBanEngine {
     }
 
     private void rightClickRandom() {
-        org.dreambot.api.input.Mouse.move(
-            ThreadLocalRandom.current().nextInt(100, 620),
-            ThreadLocalRandom.current().nextInt(100, 400));
+        if (mouseBehavior != null) {
+            mouseBehavior.moveTo(
+                ThreadLocalRandom.current().nextInt(100, 620),
+                ThreadLocalRandom.current().nextInt(100, 400));
+        } else {
+            org.dreambot.api.input.Mouse.move(
+                ThreadLocalRandom.current().nextInt(100, 620),
+                ThreadLocalRandom.current().nextInt(100, 400));
+        }
     }
 
     private void yawnPause() {
@@ -268,7 +323,11 @@ public final class AntiBanEngine {
     }
 
     private void afkGlance() {
-        org.dreambot.api.input.Mouse.move(-1, -1);
+        if (mouseBehavior != null) {
+            mouseBehavior.moveOffScreen();
+        } else {
+            org.dreambot.api.input.Mouse.move(-1, -1);
+        }
         Sleep.sleep(ThreadLocalRandom.current().nextInt(1500, 6000));
     }
 

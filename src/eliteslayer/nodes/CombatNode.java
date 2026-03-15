@@ -3,6 +3,8 @@ package eliteslayer.nodes;
 import eliteslayer.behavior.Node;
 import eliteslayer.behavior.Status;
 import eliteslayer.game.MonsterDef;
+import eliteslayer.systems.DynamicTaskLearner;
+import eliteslayer.systems.HumanReactionEngine;
 import eliteslayer.util.Navigator;
 import eliteslayer.util.SleepUtil;
 import eliteslayer.util.Telemetry;
@@ -15,27 +17,60 @@ import org.dreambot.api.wrappers.interactive.NPC;
 import org.dreambot.api.wrappers.interactive.Player;
 
 import java.util.List;
+import java.util.concurrent.ThreadLocalRandom;
 
 /**
- * Core combat loop with upgraded target scoring (optimisation 4).
+ * Core combat loop with advanced NPC target scoring and dynamic learning
+ * integration.
  *
- * Score = 1000 - distance*15 - (inCombat?300:0) - healthPercent*2
- *              + (interactable?50:0)
+ * <h3>Scoring formula</h3>
+ * <pre>
+ * Score = 1000
+ *       - distance × 15
+ *       - (inCombat ? 300 : 0)
+ *       - healthPercent × 2
+ *       + (interactable ? 50 : 0)
+ *       + (idleAnimation ? 30 : 0)    ← NEW: idle NPCs are easier targets
+ *       - (nearOtherPlayers × 25)     ← NEW: avoid crowded NPC areas
+ *       × npcReliability              ← NEW: learned success-rate modifier
+ *       + randomJitter                ← NEW: prevents perfectly deterministic picks
+ * </pre>
  *
- * NPCs that are in combat but NOT targeting the local player are filtered out
- * (tagged by another player).
+ * <h3>Other improvements</h3>
+ * <ul>
+ *   <li><b>Re-aggro penalty</b> — recently-attacked NPCs that we failed to
+ *       kill are penalized to avoid repeatedly mis-targeting the same NPC.</li>
+ *   <li><b>Human reaction delay</b> — a short delay is inserted before
+ *       attacking to simulate reaction time.</li>
+ *   <li><b>Learning integration</b> — records successful/failed attacks per
+ *       NPC ID to the {@link DynamicTaskLearner}.</li>
+ * </ul>
  */
 public final class CombatNode implements Node {
 
     private final MonsterDef monster;
+    private final HumanReactionEngine reactions;
+    private final DynamicTaskLearner  learner;
 
     /** NPC we most recently issued an Attack command to. */
     private NPC  currentTarget  = null;
     /** True if local player was in combat on the previous tick. */
     private boolean wasInCombat = false;
+    /** NPC ID of the last failed attack (for re-aggro penalty). */
+    private int  lastFailedNpcId = -1;
+    /** Timestamp of the last failed attack. */
+    private long lastFailedTime  = 0L;
+    /** Re-aggro penalty window (ms). */
+    private static final long REAGGRO_PENALTY_MS = 30_000L;
+    /** OSRS idle animation ID (no animation playing). */
+    private static final int IDLE_ANIMATION_ID = -1;
 
-    public CombatNode(MonsterDef monster) {
-        this.monster = monster;
+    public CombatNode(MonsterDef monster,
+                      HumanReactionEngine reactions,
+                      DynamicTaskLearner learner) {
+        this.monster   = monster;
+        this.reactions = reactions;
+        this.learner   = learner;
     }
 
     @Override
@@ -50,6 +85,7 @@ public final class CombatNode implements Node {
         // Kill detection: we were fighting, now we're not, and the NPC vanished
         if (wasInCombat && !inCombat && currentTarget != null && !currentTarget.exists()) {
             Telemetry.addKill();
+            if (learner != null) learner.recordNpcSuccess(currentTarget.getID());
             Logger.log("[CombatNode] Kill registered. Total: " + Telemetry.getKillCount());
             currentTarget = null;
         }
@@ -84,10 +120,18 @@ public final class CombatNode implements Node {
         Telemetry.setAction("Attacking " + Telemetry.getTarget());
         Logger.log("[CombatNode] Attacking " + Telemetry.getTarget());
 
+        // Human reaction delay before attacking
+        if (reactions != null) reactions.reactCombat();
+
         boolean ok = SleepUtil.retryInteract(target, "Attack", 3);
         if (ok) {
             currentTarget = target;
             Sleep.sleepUntil(local::isInCombat, 4_000);
+        } else {
+            // Record failure for learning and re-aggro penalty
+            lastFailedNpcId = target.getID();
+            lastFailedTime  = System.currentTimeMillis();
+            if (learner != null) learner.recordNpcFailure(target.getID());
         }
         return ok ? Status.RUNNING : Status.FAILURE;
     }
@@ -121,24 +165,69 @@ public final class CombatNode implements Node {
 
         if (candidates == null || candidates.isEmpty()) return null;
 
+        // Count nearby players for crowd-penalty calculation
+        List<Player> nearbyPlayers = Players.all();
+        Tile localTile = local.getTile();
+
         // Single-pass maximum — no streams (optimisation 11)
-        NPC   best      = null;
+        NPC    best      = null;
         double bestScore = Double.NEGATIVE_INFINITY;
-        Tile   localTile = local.getTile();
 
         for (NPC npc : candidates) {
             if (npc == null) continue;
+
             double dist  = npc.getTile().distance(localTile);
+
+            // Base score
             double score = 1000.0
                 - dist * 15.0
-                - (npc.isInCombat()    ? 300.0 : 0.0)
+                - (npc.isInCombat()     ? 300.0 : 0.0)
                 - (npc.getHealthPercent() * 2.0)
-                + (npc.isInteractable() ? 50.0 : 0.0);
+                + (npc.isInteractable() ? 50.0  : 0.0);
+
+            // NEW: Idle animation bonus — idle NPCs are easier to engage
+            if (npc.getAnimation() == IDLE_ANIMATION_ID) {
+                score += 30.0;
+            }
+
+            // NEW: Crowd penalty — NPCs near other players are less desirable
+            int playersNearNpc = countPlayersNear(npc.getTile(), nearbyPlayers, local, 4);
+            score -= playersNearNpc * 25.0;
+
+            // NEW: Re-aggro penalty — avoid NPCs we recently failed on
+            if (npc.getID() == lastFailedNpcId
+                    && System.currentTimeMillis() - lastFailedTime < REAGGRO_PENALTY_MS) {
+                score -= 150.0;
+            }
+
+            // NEW: Learned reliability modifier
+            if (learner != null) {
+                score *= learner.getNpcWeight(npc.getID());
+            }
+
+            // NEW: Small random jitter to prevent deterministic picks
+            score += ThreadLocalRandom.current().nextDouble(-15.0, 15.0);
+
             if (score > bestScore) {
                 bestScore = score;
                 best      = npc;
             }
         }
         return best;
+    }
+
+    /**
+     * Counts the number of other players within {@code radius} tiles of a
+     * position — used for the crowd penalty.
+     */
+    private static int countPlayersNear(Tile centre, List<Player> players,
+                                        Player exclude, int radius) {
+        int count = 0;
+        if (players == null) return 0;
+        for (Player p : players) {
+            if (p == null || p.equals(exclude)) continue;
+            if (p.getTile().distance(centre) <= radius) count++;
+        }
+        return count;
     }
 }

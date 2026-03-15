@@ -21,6 +21,10 @@ public final class Telemetry {
     private static final AtomicLong    sessionTasks  = new AtomicLong(0);
     private static final AtomicLong    geRestocks    = new AtomicLong(0);
     private static final AtomicLong    muleTransfers = new AtomicLong(0);
+    /** World hops this session. */
+    private static final AtomicLong    worldHops     = new AtomicLong(0);
+    /** Threats detected this session. */
+    private static final AtomicLong    threatsDetected = new AtomicLong(0);
     /** Starting XP for this session (set once in onStart). */
     private static final AtomicLong    startXp       = new AtomicLong(0);
     /** Script start time for GP/hr and kill-rate calculation. */
@@ -40,6 +44,8 @@ public final class Telemetry {
     public static void addTask()        { sessionTasks.incrementAndGet(); }
     public static void addGERestock()   { geRestocks.incrementAndGet(); }
     public static void addMuleTransfer(){ muleTransfers.incrementAndGet(); }
+    public static void addWorldHop()     { worldHops.incrementAndGet(); }
+    public static void addThreat()       { threatsDetected.incrementAndGet(); }
 
     public static String  getState()         { return currentState.get(); }
     public static String  getTarget()        { return currentTarget.get(); }
@@ -52,6 +58,8 @@ public final class Telemetry {
     public static long    getSessionTasks()  { return sessionTasks.get(); }
     public static long    getGERestocks()    { return geRestocks.get(); }
     public static long    getMuleTransfers() { return muleTransfers.get(); }
+    public static long    getWorldHops()     { return worldHops.get(); }
+    public static long    getThreatsDetected() { return threatsDetected.get(); }
     public static long    getStartTime()     { return startTime.get(); }
 
     /** Success-rate percentage (0-100). */
@@ -96,6 +104,8 @@ public final class Telemetry {
         sessionTasks.set(0);
         geRestocks.set(0);
         muleTransfers.set(0);
+        worldHops.set(0);
+        threatsDetected.set(0);
         startXp.set(0);
         startTime.set(System.currentTimeMillis());
     }
