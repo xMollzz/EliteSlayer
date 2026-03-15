@@ -1,7 +1,10 @@
 package eliteslayer.ui;
 
+import eliteslayer.systems.CombatStrategy;
 import eliteslayer.systems.CrowdTracker;
 import eliteslayer.systems.EntropyMonitor;
+import eliteslayer.systems.FatigueEngine;
+import eliteslayer.systems.PlayerProfile;
 import eliteslayer.util.Telemetry;
 import org.dreambot.api.methods.skills.Skill;
 import org.dreambot.api.methods.skills.Skills;
@@ -33,12 +36,20 @@ public final class ScriptHUD {
     private static final int BAR_W     = 180;
     private static final int PADDING   = 8;
 
-    private final EntropyMonitor entropy;
-    private final CrowdTracker   crowd;
+    private final EntropyMonitor  entropy;
+    private final CrowdTracker    crowd;
+    private final FatigueEngine   fatigue;
+    private final PlayerProfile   profile;
+    private final CombatStrategy  strategy;
 
-    public ScriptHUD(EntropyMonitor entropy, CrowdTracker crowd) {
-        this.entropy = entropy;
-        this.crowd   = crowd;
+    public ScriptHUD(EntropyMonitor entropy, CrowdTracker crowd,
+                     FatigueEngine fatigue, PlayerProfile profile,
+                     CombatStrategy strategy) {
+        this.entropy  = entropy;
+        this.crowd    = crowd;
+        this.fatigue  = fatigue;
+        this.profile  = profile;
+        this.strategy = strategy;
     }
 
     /** Called from onPaint — renders the entire HUD. */
@@ -46,7 +57,7 @@ public final class ScriptHUD {
         Graphics2D g2 = (Graphics2D) g;
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
-        int lines  = 16;
+        int lines  = 19;
         int height = PADDING * 2 + lines * LINE_H + BAR_H * 2 + 10;
 
         // Background
@@ -91,7 +102,12 @@ public final class ScriptHUD {
         drawRow(g2, x, y, "PathFail:", String.valueOf(Telemetry.getPathFailures())); y += LINE_H;
 
         // Crowd
-        drawRow(g2, x, y, "Crowd:",   crowd.getCurrentCrowd() + " nearby"); y += LINE_H + 4;
+        drawRow(g2, x, y, "Crowd:",    crowd.getCurrentCrowd() + " nearby"); y += LINE_H;
+
+        // Fatigue / Profile / Strategy
+        drawRow(g2, x, y, "Fatigue:",  String.format("%.2f", fatigue.getCapped(5.0))); y += LINE_H;
+        drawRow(g2, x, y, "Profile:",  profile.name()); y += LINE_H;
+        drawRow(g2, x, y, "Strategy:", strategy.name()); y += LINE_H + 4;
 
         // HP bar
         int hp    = Skills.getBoostedLevel(Skill.HITPOINTS);
